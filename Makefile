@@ -2,6 +2,26 @@ SHELL := /bin/sh
 
 .DEFAULT_GOAL := help
 
+ifneq (,$(wildcard .env))
+include .env
+endif
+
+AOTEL_PUBLIC_ENDPOINT ?= http://localhost:8088
+AUTH_API_DB_PATH ?= /data/auth-api.sqlite3
+CAPTURE_PROFILE ?= normal
+ENDPOINT ?= $(AOTEL_PUBLIC_ENDPOINT)
+EXPIRES ?= 90d
+GATEWAY_NETWORK ?= agent-otel-gateway
+GATEWAY_HOST ?= 127.0.0.1
+GATEWAY_PORT ?= 8088
+PROFILE ?= normal
+SIGNOZ_NETWORK ?= signoz-net
+SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
+SIGNOZ_VENDOR_DIR ?= .vendor/signoz
+TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
+
+export AUTH_API_DB_PATH GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
+
 .PHONY: help signoz-up signoz-down gateway-up up down logs user token smoke install-codex install-claude
 
 define require_var
@@ -12,67 +32,78 @@ define require_var
 	fi
 endef
 
-define not_implemented
-	@printf '%s\n' 'Target "$(1)" is not implemented yet.'
-	@printf '%s\n' '$(2)'
-	@exit 2
-endef
-
 help:
 	@printf '%s\n' 'Agent OpenTelemetry Trial'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Available targets:'
-	@printf '%s\n' '  make signoz-up       Start the local SigNoz backend once compose/docker-compose.signoz.yml exists.'
-	@printf '%s\n' '  make signoz-down     Stop the local SigNoz backend once compose/docker-compose.signoz.yml exists.'
-	@printf '%s\n' '  make up              Start the gateway stack once compose/docker-compose.gateway.yml exists.'
-	@printf '%s\n' '  make down            Stop the gateway stack once compose/docker-compose.gateway.yml exists.'
-	@printf '%s\n' '  make logs            Follow gateway stack logs once compose/docker-compose.gateway.yml exists.'
-	@printf '%s\n' '  make user EMAIL=... TEAM=...'
-	@printf '%s\n' '                       Create/update a telemetry user once otelctl and Compose are implemented.'
-	@printf '%s\n' '  make token EMAIL=... Issue a telemetry token once otelctl and Compose are implemented.'
-	@printf '%s\n' '  make smoke TOKEN=... Send test telemetry once scripts/smoke-test-otel.py exists.'
-	@printf '%s\n' '  make install-codex ENDPOINT=... TOKEN=...'
-	@printf '%s\n' '                       Install Codex telemetry config once the installer exists.'
-	@printf '%s\n' '  make install-claude ENDPOINT=... TOKEN=...'
-	@printf '%s\n' '                       Install Claude Code telemetry env.'
+	@printf '%s\n' '  make signoz-up       Clone/start the local SigNoz Docker stack.'
+	@printf '%s\n' '  make signoz-down     Stop the local SigNoz Docker stack.'
+	@printf '%s\n' '  make up              Start auth-api, Nginx, and Collector gateway.'
+	@printf '%s\n' '  make down            Stop the gateway stack.'
+	@printf '%s\n' '  make logs            Follow gateway stack logs.'
+	@printf '%s\n' '  make user EMAIL=... TEAM=... [NAME=...]'
+	@printf '%s\n' '                       Create/update a telemetry user.'
+	@printf '%s\n' '  make token EMAIL=... [TOKEN_NAME=...] [EXPIRES=90d] [CAPTURE_PROFILE=normal|max]'
+	@printf '%s\n' '                       Issue a telemetry token and print onboarding snippets.'
+	@printf '%s\n' '  make smoke TOKEN=... [ENDPOINT=http://localhost:8088]'
+	@printf '%s\n' '                       Send test telemetry through the gateway.'
+	@printf '%s\n' '  make install-codex ENDPOINT=... TOKEN=... [PROFILE=normal|max]'
+	@printf '%s\n' '                       Install Codex telemetry config.'
+	@printf '%s\n' '  make install-claude ENDPOINT=... TOKEN=... [PROFILE=normal|max]'
+	@printf '%s\n' '                       Write Claude Code telemetry env file.'
 
 signoz-up:
-	$(call not_implemented,$@,compose/docker-compose.signoz.yml is planned for AOTEL-008.)
+	@mkdir -p .vendor
+	@if [ ! -d "$(SIGNOZ_VENDOR_DIR)/.git" ]; then \
+		git clone -b main https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
+	fi
+	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
 
 signoz-down:
-	$(call not_implemented,$@,compose/docker-compose.signoz.yml is planned for AOTEL-008.)
+	@if [ ! -f "$(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml" ]; then \
+		printf '%s\n' 'SigNoz vendor compose file is missing. Run make signoz-up first.'; \
+		exit 2; \
+	fi
+	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) down
 
-gateway-up:
-	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
+gateway-up: up
 
 up:
-	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
+	@docker network inspect "$(SIGNOZ_NETWORK)" >/dev/null 2>&1 || { \
+		printf '%s\n' 'SigNoz network is missing. Run make signoz-up first.'; \
+		exit 2; \
+	}
+	docker compose -f compose/docker-compose.gateway.yml up -d
 
 down:
-	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
+	docker compose -f compose/docker-compose.gateway.yml down
 
 logs:
-	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
+	docker compose -f compose/docker-compose.gateway.yml logs -f
 
 user:
 	$(call require_var,EMAIL,make user EMAIL=alice@example.com TEAM=quant-dev)
 	$(call require_var,TEAM,make user EMAIL=alice@example.com TEAM=quant-dev)
-	$(call not_implemented,$@,otelctl user commands are planned for AOTEL-004 and Compose wiring is planned for AOTEL-007.)
+	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
 
 token:
 	$(call require_var,EMAIL,make token EMAIL=alice@example.com)
-	$(call not_implemented,$@,otelctl token commands are planned for AOTEL-004 and Compose wiring is planned for AOTEL-007.)
+	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
 	$(call require_var,TOKEN,make smoke TOKEN=<issued-token>)
-	$(call not_implemented,$@,scripts/smoke-test-otel.py is planned for AOTEL-009.)
+	@test -f scripts/smoke-test-otel.py || { \
+		printf '%s\n' 'Smoke test script is not present in this stack slice. Run the AOTEL-009 smoke-test branch or add scripts/smoke-test-otel.py.'; \
+		exit 2; \
+	}
+	python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)" --token "$(TOKEN)"
 
 install-codex:
 	$(call require_var,ENDPOINT,make install-codex ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
 	$(call require_var,TOKEN,make install-codex ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
-	$(call not_implemented,$@,scripts/install-codex-otel.sh is planned for AOTEL-010.)
+	bash scripts/install-codex-otel.sh --endpoint "$(ENDPOINT)" --token "$(TOKEN)" --profile "$(PROFILE)"
 
 install-claude:
 	$(call require_var,ENDPOINT,make install-claude ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
 	$(call require_var,TOKEN,make install-claude ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
-	@bash scripts/install-claude-otel.sh --endpoint "$(ENDPOINT)" --token "$(TOKEN)" --profile "$(or $(PROFILE),normal)" --output "$(or $(OUTPUT),./claude.otel.env)"
+	bash scripts/install-claude-otel.sh --endpoint "$(ENDPOINT)" --token "$(TOKEN)" --profile "$(or $(PROFILE),normal)" --token-capture-profile "$(TOKEN_CAPTURE_PROFILE)" --output "$(or $(OUTPUT),./claude.otel.env)"
