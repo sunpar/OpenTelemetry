@@ -111,7 +111,7 @@ check passed; both Compose configs validated.
    and refresh `docs/agentic-system/feature-model.json` before generating slices
    from it.
 
-3. Auth-api packaging is still script-shaped.
+3. Auth-api packaging was still script-shaped.
 
    Evidence: the auth-api Dockerfile sets `PYTHONPATH=/app/src` and runs
    `uvicorn app:app`; tests import `app`, `db`, and `tokens` as top-level
@@ -189,17 +189,47 @@ Files changed:
 
 ## Next Slices
 
-1. Package auth-api under `auth_api`.
+## Third Slice Applied
 
-   Move service modules into the package namespace and update Docker/test entry
-   points from `app:app` to `auth_api.app:app` once shared auth core exists.
+Scope: move the auth-api runtime entrypoint and settings into the `auth_api`
+package while preserving old import paths as compatibility wrappers.
 
-2. Refresh feature model.
+Changes:
+
+- Added `auth_api.app` and `auth_api.settings` as the packaged runtime modules.
+- Reduced top-level `app.py` and `settings.py` to compatibility wrappers.
+- Updated Docker to run `uvicorn auth_api.app:app`.
+- Updated auth-api tests and package metadata tests to use the package modules.
+- Refreshed README and agent-context docs for the package shape.
+
+Focused check:
+
+```sh
+.venv/bin/python -m pytest services/auth-api/tests tests/test_aotel001_scaffold.py -q
+```
+
+Result: 27 passed.
+
+Files changed:
+
+- `services/auth-api/src/auth_api/app.py`
+- `services/auth-api/src/auth_api/settings.py`
+- `services/auth-api/src/app.py`
+- `services/auth-api/src/settings.py`
+- `services/auth-api/Dockerfile`
+- `services/auth-api/tests/test_auth_api.py`
+- `services/auth-api/tests/test_runtime_config.py`
+- `tests/test_aotel001_scaffold.py`
+- repo context docs
+
+## Next Slices
+
+1. Refresh feature model.
 
    Update `docs/agentic-system/feature-model.json` so component status, code
    paths, test commands, and doc/code mismatch notes match the current app.
 
-3. Tighten root verification contract.
+2. Tighten root verification contract.
 
    Ensure CI/dev requirements and Make targets exercise the shared package,
    package imports, shell parse checks, Compose config validation, and

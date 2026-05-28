@@ -19,4 +19,4 @@ WORKDIR /app/services/auth-api
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec uvicorn app:app --host ${AUTH_API_HOST} --port ${AUTH_API_PORT}"]
+CMD ["sh", "-c", "exec uvicorn auth_api.app:app --host ${AUTH_API_HOST} --port ${AUTH_API_PORT}"]

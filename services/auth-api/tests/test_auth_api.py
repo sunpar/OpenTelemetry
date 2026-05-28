@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import app as app_module
-from app import create_app
+import auth_api.app as app_module
+from auth_api.app import create_app
 from db import connect, initialize_database, upsert_user
-from settings import Settings
+from auth_api.settings import Settings
 from tokens import issue_token, new_token_id, revoke_token
 
 

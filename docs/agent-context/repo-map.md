@@ -118,7 +118,8 @@ docs/
 ## Config Surfaces
 
 - `.env.example`: non-secret local defaults.
-- `services/auth-api/src/settings.py`: auth-api runtime settings.
+- `services/auth-api/src/auth_api/settings.py`: auth-api runtime settings.
+- `services/auth-api/src/auth_api/app.py`: packaged FastAPI runtime entrypoint.
 - `packages/auth-core/src/agent_otel_auth_core/migrations/001_initial.sql`:
   user, token, and ingest audit schema.
 - `infra/nginx/nginx.conf`: auth ingress and trusted telemetry headers.
@@ -198,6 +199,5 @@ Cardinality-sensitive fields:
 - SQLite is the v1 persistence layer; Postgres migration remains future work.
 - Codex telemetry config must be re-verified against the installed Codex CLI
   before shipping the installer.
-- Auth-api still exposes script-shaped top-level modules (`app`, `db`, `tokens`,
-  `models`) for runtime compatibility; moving the service under `auth_api.*`
-  remains a cleanup slice.
+- Auth-api still keeps top-level compatibility wrappers (`app`, `settings`,
+  `db`, `tokens`, `models`) for local scripts and older tests.
