@@ -10,11 +10,11 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-otelctl = "otelctl.__main__:main"
+otelctl = "otelctl:entrypoint"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["otelctl*"]
+[tool.setuptools]
+py-modules = ["otelctl"]
+package-dir = {"" = "src"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
