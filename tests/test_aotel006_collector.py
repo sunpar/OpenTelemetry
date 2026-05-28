@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import yaml
-
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_CONFIG = ROOT / "infra/otel/collector.local.yaml"
@@ -10,8 +8,78 @@ NORMALIZE_FRAGMENT = ROOT / "infra/otel/processors/normalize-agent-fields.yaml"
 
 
 def _load_yaml(path: Path):
-    with path.open() as handle:
-        return yaml.safe_load(handle)
+    return _parse_yaml_subset(path.read_text().splitlines())
+
+
+def _parse_yaml_subset(lines: list[str]):
+    content = [
+        (len(line) - len(line.lstrip(" ")), line.strip())
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+    def parse_block(index: int, indent: int):
+        if index >= len(content):
+            return {}, index
+        if content[index][0] == indent and content[index][1].startswith("- "):
+            return parse_list(index, indent)
+        return parse_mapping(index, indent)
+
+    def parse_list(index: int, indent: int):
+        result = []
+        while index < len(content):
+            line_indent, text = content[index]
+            if line_indent != indent or not text.startswith("- "):
+                break
+
+            item = text[2:]
+            index += 1
+            if ": " in item or item.endswith(":"):
+                key, value = item.split(":", 1)
+                entry = {}
+                if value.strip():
+                    entry[key] = parse_scalar(value.strip())
+                else:
+                    entry[key], index = parse_block(index, indent + 2)
+                if index < len(content) and content[index][0] == indent + 2:
+                    more, index = parse_mapping(index, indent + 2)
+                    entry.update(more)
+                result.append(entry)
+            else:
+                result.append(parse_scalar(item))
+        return result, index
+
+    def parse_mapping(index: int, indent: int):
+        result = {}
+        while index < len(content):
+            line_indent, text = content[index]
+            if line_indent < indent or text.startswith("- "):
+                break
+            if line_indent > indent:
+                break
+            key, value = text.split(":", 1)
+            index += 1
+            if value.strip():
+                result[key] = parse_scalar(value.strip())
+            else:
+                result[key], index = parse_block(index, indent + 2)
+        return result, index
+
+    parsed, next_index = parse_block(0, 0)
+    assert next_index == len(content)
+    return parsed
+
+
+def parse_scalar(value: str):
+    if value.startswith("[") and value.endswith("]"):
+        return [parse_scalar(part.strip()) for part in value[1:-1].split(",")]
+    if value in {"true", "false"}:
+        return value == "true"
+    if value.isdigit():
+        return int(value)
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
 
 
 def test_collector_yaml_files_parse():
@@ -81,6 +149,7 @@ def test_collector_exporter_has_queue_retry_and_internal_signoz_endpoint():
     assert prod_exporter["endpoint"] == "${env:SIGNOZ_OTLP_GRPC_ENDPOINT}"
 
     for exporter in [local_exporter, prod_exporter]:
+        assert exporter["tls"]["insecure"] is True
         assert exporter["sending_queue"]["enabled"] is True
         assert exporter["sending_queue"]["queue_size"] == 5000
         assert exporter["retry_on_failure"]["enabled"] is True

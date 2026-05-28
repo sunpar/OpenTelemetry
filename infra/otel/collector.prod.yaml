@@ -58,7 +58,7 @@ exporters:
   otlp/signoz:
     endpoint: "${env:SIGNOZ_OTLP_GRPC_ENDPOINT}"
     tls:
-      insecure: false
+      insecure: true
     sending_queue:
       enabled: true
       queue_size: 5000
