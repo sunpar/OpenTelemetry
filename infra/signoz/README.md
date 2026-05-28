@@ -72,6 +72,40 @@ policy in `docs/storage-retention.md`:
 Check disk growth during the first week and shorten retention before enabling
 any max-capture profile.
 
+## Dashboard Import
+
+Starter dashboard JSON files live in:
+
+```text
+infra/signoz/dashboards/
+```
+
+The current files are starter contracts rather than finalized SigNoz exports:
+
+- `team-usage.json`
+- `codex-overview.json`
+- `claude-overview.json`
+- `tool-usage.json`
+- `collector-health.json`
+
+Use manual import after the first live SigNoz instance confirms the dashboard
+schema expected by the installed version. Keep the user, team, tool, and
+capture-profile filters on tenant telemetry dashboards, and avoid default metric
+group-bys on session ids, branch names, command text, file paths, or full repo
+remotes.
+
+`collector-health.json` is intentionally different. It targets Collector
+self-metrics such as `otelcol_exporter_send_failed_log_records`,
+`otelcol_exporter_send_failed_spans`, and
+`otelcol_exporter_send_failed_metric_points` after those metrics are ingested
+into SigNoz. The current gateway Collector configs receive client OTLP
+telemetry and export it to SigNoz; they do not scrape the gateway Collector's
+own metrics endpoint. If the deployment uses this dashboard, first route
+Collector self-metrics into SigNoz, then keep the dashboard filters limited to
+Collector labels such as `exporter`, `receiver`, and `processor`. Do not apply
+tenant-only filters such as `telemetry.user.email`, `telemetry.team.id`,
+`agent.tool`, or `agent.capture.profile` to Collector self-metrics.
+
 ## Shutdown
 
 Stop the upstream stack without deleting volumes:

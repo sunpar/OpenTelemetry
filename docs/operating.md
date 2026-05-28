@@ -105,7 +105,9 @@ docker compose -f compose/docker-compose.gateway.yml ps
 ```
 
 Collector health is visible in the Collector health dashboard after dashboard
-import.
+import only when Collector self-metrics are already routed into SigNoz. The
+current gateway Collector configs export client telemetry to SigNoz, but do not
+scrape the gateway Collector's own metrics endpoint.
 
 ## Dashboard Import
 

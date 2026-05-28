@@ -92,6 +92,10 @@ Starter dashboards use these primary filters:
 - `run.outcome`
 - `agent.capture.profile`
 
+The Collector health dashboard is an exception because it targets Collector
+self-metrics, not tenant telemetry. Keep it filtered by Collector labels such as
+`exporter`, `receiver`, and `processor`.
+
 ## Initial Dashboard Set
 
 1. Team overview:

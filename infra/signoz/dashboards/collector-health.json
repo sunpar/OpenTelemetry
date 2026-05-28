@@ -1,0 +1,42 @@
+{
+  "schema_version": "agent-otel-trial.dashboard.v1",
+  "title": "Collector Health",
+  "description": "Starter Collector resilience dashboard for gateway operations. Targets Collector self-metrics ingested into SigNoz.",
+  "filters": [
+    "exporter",
+    "receiver",
+    "processor"
+  ],
+  "panels": [
+    {
+      "title": "Exporter send failures",
+      "signal": "metrics",
+      "query": "sum(otelcol_exporter_send_failed_log_records) + sum(otelcol_exporter_send_failed_spans) + sum(otelcol_exporter_send_failed_metric_points)",
+      "group_by": ["exporter"]
+    },
+    {
+      "title": "Exporter queue size",
+      "signal": "metrics",
+      "query": "max otelcol_exporter_queue_size",
+      "group_by": ["exporter"]
+    },
+    {
+      "title": "Exporter queue capacity",
+      "signal": "metrics",
+      "query": "max otelcol_exporter_queue_capacity",
+      "group_by": ["exporter"]
+    },
+    {
+      "title": "Refused logs, spans, and metrics",
+      "signal": "metrics",
+      "query": "sum(otelcol_receiver_refused_log_records) + sum(otelcol_receiver_refused_spans) + sum(otelcol_receiver_refused_metric_points)",
+      "group_by": ["receiver"]
+    },
+    {
+      "title": "Memory limiter activity",
+      "signal": "metrics",
+      "query": "sum(otelcol_processor_refused_log_records{processor=\"memory_limiter\"}) + sum(otelcol_processor_refused_spans{processor=\"memory_limiter\"}) + sum(otelcol_processor_refused_metric_points{processor=\"memory_limiter\"})",
+      "group_by": ["processor"]
+    }
+  ]
+}
