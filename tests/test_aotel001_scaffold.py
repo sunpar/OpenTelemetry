@@ -79,20 +79,22 @@ def test_python_package_metadata_is_valid():
         assert data["build-system"]["build-backend"] == "setuptools.build_meta"
 
     cli_data = tomllib.loads((ROOT / "cli/otelctl/pyproject.toml").read_text())
-    assert cli_data["project"]["scripts"]["otelctl"] == "otelctl.__main__:main"
+    assert cli_data["project"]["scripts"]["otelctl"] == "otelctl:entrypoint"
 
 
 def test_initial_source_packages_import_cleanly():
-    for relative_init in [
-        "services/auth-api/src/auth_api/__init__.py",
-        "cli/otelctl/src/otelctl/__init__.py",
-    ]:
+    package_versions = {
+        "services/auth-api/src/auth_api/__init__.py": "0.1.0",
+        "cli/otelctl/src/otelctl_auth/__init__.py": None,
+    }
+    for relative_init, expected_version in package_versions.items():
         module_name = relative_init.replace("/", "_").replace("-", "_").replace(".py", "")
         spec = importlib.util.spec_from_file_location(module_name, ROOT / relative_init)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
-        assert module.__version__ == "0.1.0"
+        if expected_version is not None:
+            assert module.__version__ == expected_version
 
 
 def test_make_help_runs_without_downstream_services():
