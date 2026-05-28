@@ -17,6 +17,7 @@ Current package, build, and validation files:
 - `requirements-dev.txt`: editable local package installs plus test/lint tools.
 - `Makefile`: local operator targets for SigNoz, gateway, user/token commands,
   smoke checks, and installers.
+- `packages/auth-core/pyproject.toml`: shared auth storage and token package.
 - `services/auth-api/pyproject.toml`: FastAPI auth service package.
 - `cli/otelctl/pyproject.toml`: operator CLI package.
 - `compose/docker-compose.gateway.yml`: auth-api, Nginx, and Collector gateway.
@@ -33,6 +34,8 @@ README.md
     ci.yml
 requirements-dev.txt
 Makefile
+packages/
+  auth-core/
 compose/
   docker-compose.gateway.yml
   docker-compose.signoz.yml
@@ -74,8 +77,10 @@ docs/
 
 - `services/auth-api/`: token verification service, SQLite migrations, and
   service tests.
-- `cli/otelctl/`: operator CLI, packaged templates, auth-domain helpers, and
-  CLI tests.
+- `packages/auth-core/`: shared auth models, SQLite migrations, database
+  helpers, and token lifecycle logic.
+- `cli/otelctl/`: operator CLI, packaged templates, thin auth compatibility
+  wrappers, and CLI tests.
 - `infra/nginx/`: Nginx `auth_request` ingress for `/v1/logs`, `/v1/traces`,
   and `/v1/metrics`.
 - `infra/otel/`: Collector local/prod configs and agent normalization fragment.
@@ -114,8 +119,8 @@ docs/
 
 - `.env.example`: non-secret local defaults.
 - `services/auth-api/src/settings.py`: auth-api runtime settings.
-- `services/auth-api/migrations/001_initial.sql`: user, token, and ingest audit
-  schema.
+- `packages/auth-core/src/agent_otel_auth_core/migrations/001_initial.sql`:
+  user, token, and ingest audit schema.
 - `infra/nginx/nginx.conf`: auth ingress and trusted telemetry headers.
 - `infra/otel/collector.local.yaml`: local Collector gateway profile.
 - `infra/otel/collector.prod.yaml`: production Collector gateway profile.
@@ -193,5 +198,6 @@ Cardinality-sensitive fields:
 - SQLite is the v1 persistence layer; Postgres migration remains future work.
 - Codex telemetry config must be re-verified against the installed Codex CLI
   before shipping the installer.
-- The duplicated auth-domain helpers in `services/auth-api` and `cli/otelctl`
-  may need a first-class shared package once the local trial stabilizes.
+- Auth-api still exposes script-shaped top-level modules (`app`, `db`, `tokens`,
+  `models`) for runtime compatibility; moving the service under `auth_api.*`
+  remains a cleanup slice.

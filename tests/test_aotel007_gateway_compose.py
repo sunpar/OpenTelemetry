@@ -32,7 +32,10 @@ def test_gateway_services_are_wired_to_repo_configs():
     compose = _load_compose()
     services = compose["services"]
 
-    assert services["auth-api"]["build"]["context"] == "../services/auth-api"
+    assert services["auth-api"]["build"] == {
+        "context": "..",
+        "dockerfile": "services/auth-api/Dockerfile",
+    }
     assert services["auth-api"]["environment"]["AUTH_API_DB_PATH"] == "${AUTH_API_DB_PATH:-/data/auth-api.sqlite3}"
     assert "../:/workspace:ro" in services["auth-api"]["volumes"]
     assert "auth-api-data:/data" in services["auth-api"]["volumes"]

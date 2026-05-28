@@ -11,7 +11,7 @@ Setup:
 
 ```sh
 /opt/homebrew/bin/python3.11 -m venv .venv
-.venv/bin/python -m pip install -e services/auth-api -e cli/otelctl pytest pyyaml httpx
+.venv/bin/python -m pip install -e packages/auth-core -e services/auth-api -e cli/otelctl pytest pyyaml httpx
 ```
 
 Pre-refactor baseline:
@@ -38,12 +38,42 @@ Full post-slice baseline:
 
 Result: 93 passed, 1 skipped, 1 warning.
 
+Slice 2 setup refresh:
+
+```sh
+.venv/bin/python -m pip install -e packages/auth-core -e services/auth-api -e cli/otelctl
+```
+
+Slice 2 focused check:
+
+```sh
+.venv/bin/python -m pytest packages/auth-core services/auth-api/tests cli/otelctl/tests tests/test_aotel001_scaffold.py tests/test_aotel007_gateway_compose.py -q
+```
+
+Result: 45 passed.
+
+Slice 2 full verification:
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check .
+.venv/bin/python scripts/check-docs.py
+git diff --check
+docker compose -f compose/docker-compose.gateway.yml config
+docker compose -f compose/docker-compose.signoz.yml config
+```
+
+Result: 97 passed, 1 skipped; Ruff passed; docs/static checks passed; diff
+check passed; both Compose configs validated.
+
 ## App Map
 
-- `services/auth-api/`: FastAPI token verification service, SQLite migrations,
-  auth-domain helpers, and service tests.
-- `cli/otelctl/`: operator CLI, packaged templates, duplicated auth-domain
-  helpers, and CLI tests.
+- `packages/auth-core/`: shared auth models, SQLite migration, database helpers,
+  and token lifecycle logic.
+- `services/auth-api/`: FastAPI token verification service, compatibility
+  wrappers around auth-core, and service tests.
+- `cli/otelctl/`: operator CLI, packaged templates, compatibility wrappers
+  around auth-core, and CLI tests.
 - `infra/nginx/`: authenticated OTLP ingress.
 - `infra/otel/`: Collector local/prod profiles and normalization processor.
 - `infra/signoz/`: SigNoz wrapper docs and dashboards.
@@ -121,26 +151,56 @@ Files changed:
 - `docs/agent-context/test-commands.md`
 - `docs/agentic-system/targeted-review-2026-05-28.md`
 
+## Second Slice Applied
+
+Scope: extract the duplicated auth-domain implementation into a shared local
+package while preserving existing service and CLI import surfaces.
+
+Changes:
+
+- Added `packages/auth-core` with the shared dataclasses, SQLite migration,
+  database helpers, and token lifecycle logic.
+- Replaced `services/auth-api/src/{db,models,tokens}.py` and
+  `cli/otelctl/src/otelctl_auth/{db,models,tokens}.py` with compatibility
+  wrappers that re-export auth-core.
+- Removed the duplicated migration files from the service and CLI package.
+- Updated package metadata, dev requirements, Docker build context, Compose
+  build config, and package/runtime tests for the new package boundary.
+
+Files changed:
+
+- `packages/auth-core/`
+- `requirements-dev.txt`
+- `services/auth-api/pyproject.toml`
+- `services/auth-api/Dockerfile`
+- `services/auth-api/src/db.py`
+- `services/auth-api/src/models.py`
+- `services/auth-api/src/tokens.py`
+- `cli/otelctl/pyproject.toml`
+- `cli/otelctl/src/otelctl_auth/db.py`
+- `cli/otelctl/src/otelctl_auth/models.py`
+- `cli/otelctl/src/otelctl_auth/tokens.py`
+- `compose/docker-compose.gateway.yml`
+- `tests/test_aotel001_scaffold.py`
+- `tests/test_aotel007_gateway_compose.py`
+- `services/auth-api/tests/test_runtime_config.py`
+- `tests/test_ci_contract.py`
+- repo context docs
+
 ## Next Slices
 
-1. Extract shared auth core.
-
-   Create one importable package for `User`, `TokenRecord`, `ValidationResult`,
-   SQLite migrations, database helpers, and token lifecycle logic. Then update
-   auth-api and `otelctl` to import that package. This removes the highest-risk
-   duplication.
-
-2. Package auth-api under `auth_api`.
+1. Package auth-api under `auth_api`.
 
    Move service modules into the package namespace and update Docker/test entry
    points from `app:app` to `auth_api.app:app` once shared auth core exists.
 
-3. Refresh feature model.
+2. Refresh feature model.
 
    Update `docs/agentic-system/feature-model.json` so component status, code
    paths, test commands, and doc/code mismatch notes match the current app.
 
-4. Add root verification contract.
+3. Tighten root verification contract.
 
-   Add one root-level test target and initial CI job for Python tests, shell
-   parse checks, Compose config validation, and `git diff --check`.
+   Ensure CI/dev requirements and Make targets exercise the shared package,
+   package imports, shell parse checks, Compose config validation, and
+   `git diff --check`.

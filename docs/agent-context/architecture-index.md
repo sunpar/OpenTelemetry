@@ -70,8 +70,8 @@ Files:
 - `services/auth-api/src/tokens.py`
 - `services/auth-api/src/models.py`
 - `services/auth-api/src/settings.py`
-- `services/auth-api/migrations/`
 - `services/auth-api/tests/`
+- `packages/auth-core/src/agent_otel_auth_core/`
 
 Contract:
 
