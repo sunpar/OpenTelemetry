@@ -1,8 +1,7 @@
 # Milestones
 
-This project should ship in small, testable increments. The first useful
-version is token issuance, auth proxy, Collector gateway, SigNoz bootstrap,
-Codex/Claude installers, and dashboards.
+Ship in small, testable increments. The MVP is token issuance, auth proxy,
+Collector gateway, SigNoz bootstrap, Codex/Claude installers, and dashboards.
 
 ## Milestone 1: Local End-To-End Ingestion
 
@@ -102,7 +101,7 @@ Acceptance criteria:
 
 1. A teammate can be onboarded in under five minutes.
 2. A token can be revoked and subsequent requests fail.
-3. Operators can answer "what did Alice's Codex do today?"
+3. Operators can answer "what did this user's Codex do today?"
 4. Operators can answer "which users/tools generated the most telemetry?"
 5. Operators can detect Collector/exporter backpressure.
 

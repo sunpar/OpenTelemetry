@@ -1,10 +1,10 @@
 # Onboarding
 
-The onboarding goal is to get a teammate sending useful telemetry in under five
-minutes after the gateway is running.
+Target: onboard a teammate and confirm baseline telemetry within five minutes
+after the gateway is running.
 
 Status: this is the planned onboarding interface. The `make` targets and
-installers become runnable in Milestones 1-3.
+installers become runnable in Milestones 1 through 3.
 
 ## Operator Flow
 
@@ -15,8 +15,8 @@ make user EMAIL=alice@example.com TEAM=quant-dev
 make token EMAIL=alice@example.com
 ```
 
-The token command should print ready-to-use snippets for Codex and Claude Code.
-The operator sends the token to the teammate through an approved secret channel.
+The token command prints Codex and Claude Code snippets. The operator sends the
+token to the teammate through an approved secret channel.
 
 ## Teammate Flow
 
@@ -30,8 +30,8 @@ The operator sends the token to the teammate through an approved secret channel.
 
 ## Codex Config Target
 
-Codex telemetry config should be written to user-level `~/.codex/config.toml`.
-The installer must back up the existing file before writing:
+Write Codex telemetry config to user-level `~/.codex/config.toml`. The
+installer must back up the existing file before writing:
 
 ```sh
 cp ~/.codex/config.toml ~/.codex/config.toml.bak.$(date +%Y%m%d%H%M%S)
@@ -83,7 +83,7 @@ Do not enable prompt capture in the normal profile.
 
 ## Claude Code Default Env
 
-Default Claude Code onboarding should enable useful telemetry without prompt,
+Default Claude Code onboarding enables baseline telemetry without prompt,
 tool-content, or raw API body capture:
 
 ```sh
@@ -97,12 +97,12 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.yourcompany.com
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <TOKEN>"
 ```
 
-This should be generated as `templates/claude.env`.
+Generate this as `templates/claude.env`.
 
 ## Claude Code Max Capture Env
 
 Raw API body capture is opt-in only. Put it in `templates/claude.max-capture.env`
-with a clear warning that it can include full request and response bodies,
+with a warning that it can include full request and response bodies,
 conversation history, and sensitive data.
 
 ```sh
@@ -112,8 +112,8 @@ export OTEL_LOG_TOOL_CONTENT=1
 export OTEL_LOG_RAW_API_BODIES=1
 ```
 
-Use max capture for short forensic windows, not normal team onboarding. Pair it
-with a short-lived token whose `capture_profile` is `max`.
+Use max capture only for short forensic windows. Pair it with a short-lived
+token whose `capture_profile` is `max`.
 
 ## Installer Requirements
 

@@ -54,7 +54,7 @@ Only these paths are allowed:
 /v1/metrics
 ```
 
-Any other path should return 404.
+Any other path returns 404.
 
 ## Request Succeeds But No Identity Fields In SigNoz
 
@@ -122,8 +122,8 @@ Checks:
 - Confirm the `Authorization` header is present in each exporter config.
 - Confirm the installer did not overwrite unrelated Codex config.
 
-Implementation note: Codex telemetry config should be re-verified against the
-installed CLI and official Codex docs before shipping the installer.
+Re-verify Codex telemetry config against the installed CLI and official Codex
+docs before shipping the installer.
 
 ## Claude Code Does Not Emit Telemetry
 
@@ -156,8 +156,8 @@ Actions:
 
 ## Token Revocation Does Not Take Effect
 
-Opaque tokens should be checked server-side on every request. If revoked tokens
-continue to work:
+Check opaque tokens server-side on every request. If revoked tokens continue to
+work:
 
 - Confirm Nginx calls `/_auth` on every OTLP path.
 - Confirm auth-api reads current DB state for every validation.

@@ -1,11 +1,9 @@
 # Agent OpenTelemetry Trial
 
-This repository is for a small internal telemetry product for Codex, Claude
-Code, and other agent tools. The goal is not to collect a pile of one-off
-OpenTelemetry Collector configs. The goal is to provide an authenticated OTLP
-ingress, a token/control-plane service, an OpenTelemetry Collector gateway,
-client onboarding generators, SigNoz bootstrap material, and a starter set of
-dashboards.
+This repository defines an internal telemetry product for Codex, Claude Code,
+and other agent tools. It includes an authenticated OTLP ingress, a
+token/control-plane service, an OpenTelemetry Collector gateway, client
+onboarding generators, SigNoz bootstrap material, and a starter dashboard set.
 
 ## Target Outcome
 
@@ -20,12 +18,12 @@ Authorization: Bearer <per-user-token>
 
 The gateway authenticates each request, injects trusted identity headers, copies
 those headers into OpenTelemetry resource attributes, normalizes agent fields,
-and exports the result to SigNoz. Every event, span, and metric should be
-tagged by user, team, token, and tool.
+and exports the result to SigNoz. Every event, span, and metric is tagged by
+user, team, token, and tool.
 
 ## Planned Developer Path
 
-The first implemented version should make local trial setup look like this:
+Milestone 1 target local trial path:
 
 ```sh
 make signoz-up
@@ -35,8 +33,8 @@ make token EMAIL=alice@example.com
 make smoke TOKEN=<issued-token>
 ```
 
-The token command should print a Codex config snippet and a Claude Code env
-snippet so teammates do not have to reverse-engineer OpenTelemetry settings.
+The token command prints Codex and Claude Code snippets so teammates do not have
+to assemble OpenTelemetry settings by hand.
 
 ## Documentation
 
@@ -116,6 +114,6 @@ agent-otel-trial/
 
 ## Current Status
 
-This repository currently contains the initial documentation contract. The next
-implementation step is Milestone 1: local end-to-end ingestion with SigNoz,
-auth-api, Nginx auth ingress, OpenTelemetry Collector, and a smoke test.
+This repository contains the documentation and implementation contract. The next
+step is Milestone 1: local end-to-end ingestion with SigNoz, auth-api, Nginx
+auth ingress, OpenTelemetry Collector, and a smoke test.

@@ -17,25 +17,25 @@ Recommended starting point:
 
 SigNoz self-hosted docs currently describe default retention as 15 days for
 logs/traces and 30 days for metrics. For this trial, choose the retention value
-deliberately based on volume and whether max-capture data is enabled.
+based on volume and whether max-capture data is enabled.
 
 ## Guardrails
 
 - Raw API body capture is off by default.
-- Max capture should be short-window and explicitly opted into.
-- Dashboards should not group by session id, prompt id, full command text, file
+- Max capture is short-window and explicitly opted into.
+- Dashboards do not group by session id, prompt id, full command text, file
   path, or full repo path by default.
-- Collector exporters should use sending queues and retries.
-- The Collector health dashboard should track queue size, queue capacity,
-  exporter failures, refused telemetry, and memory limiter activity.
-- SigNoz disk growth should be reviewed during the first week of team usage.
+- Collector exporters use sending queues and retries.
+- The Collector health dashboard tracks queue size, queue capacity, exporter
+  failures, refused telemetry, and memory limiter activity.
+- Review SigNoz disk growth during the first week of team usage.
 
 ## Optional Warehouse Profile
 
 Do not build this first. Add it when the team needs custom SQL outside SigNoz or
 a downstream analytics contract.
 
-Target future shape:
+Future shape:
 
 ```text
 Collector
@@ -44,8 +44,8 @@ Collector
 ```
 
 If a ClickHouse exporter is added, keep the batch processor in front of it.
-ClickHouse performs better with batched inserts, and the Collector should stay
-the receive/process/export layer.
+ClickHouse performs better with batched inserts, and the Collector remains the
+receive/process/export layer.
 
 ## S3 Archive
 

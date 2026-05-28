@@ -53,8 +53,8 @@ CREATE TABLE ingest_audit (
 );
 ```
 
-SQLite is enough for the team trial. Keep schema and data access narrow enough
-that Postgres can replace SQLite without changing callers.
+Use SQLite for the team trial. Keep schema and data access narrow so Postgres
+can replace SQLite without changing callers.
 
 ## Validation Flow
 
@@ -82,7 +82,7 @@ X-Telemetry-Capture-Profile: normal
 
 Nginx must copy these response headers into trusted proxy headers for the
 Collector. Client-supplied values for these same headers must be overwritten.
-Ingress should also set `X-Telemetry-Source-Ip` from the socket or trusted proxy
+Ingress also sets `X-Telemetry-Source-Ip` from the socket or trusted proxy
 chain, not from an arbitrary client-supplied header.
 
 ## CLI Contract
@@ -97,15 +97,15 @@ otelctl tokens revoke --token-id tok_01J...
 otelctl users disable --email alice@example.com
 ```
 
-The token issuance command should print:
+The token issuance command prints:
 
 - the newly issued token once
 - a Codex config snippet
 - a Claude Code env snippet
 - a reminder that raw Claude API body capture is opt-in only
 
-Tokens default to `capture_profile=normal`. Max-capture tokens should be
-explicitly named, short-lived, and issued only for a bounded investigation.
+Tokens default to `capture_profile=normal`. Issue max-capture tokens only for
+bounded investigations, with explicit names and short expirations.
 
 ## Status Codes
 

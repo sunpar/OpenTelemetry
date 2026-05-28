@@ -32,15 +32,14 @@ Normalize only the fields needed for cross-tool dashboards.
 
 Logs can carry richer contextual fields, including prompts, tool arguments,
 command strings, repo paths, file paths, and error details. These fields are
-useful for search and drilldown but should not become default group-by fields
-on high-volume dashboards.
+available for search and drilldown but stay out of default group-by fields on
+high-volume dashboards.
 
 ### Traces
 
-Traces should carry session, conversation, request, tool-call, model, repo, and
-outcome fields when the client emits them. Traces are the best place to ask
-questions like "what did Alice's Codex do today?" because they preserve
-operation flow.
+Traces carry session, conversation, request, tool-call, model, repo, and outcome
+fields when the client emits them. Use traces for per-user activity questions
+because they preserve operation flow.
 
 ### Metrics
 
@@ -80,12 +79,11 @@ tool content are disabled by default.
 ### max
 
 Short-window forensic profile. It may include raw API request and response data
-where the client supports it. It should have short retention and should require
-explicit opt-in.
+where the client supports it. It requires explicit opt-in and short retention.
 
 ## Dashboard Dimensions
 
-Starter dashboards should use these primary filters:
+Starter dashboards use these primary filters:
 
 - `telemetry.team.id`
 - `telemetry.user.email`

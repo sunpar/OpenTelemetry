@@ -1,7 +1,7 @@
 # Operating Guide
 
-This guide describes the target local and team-trial operations. Commands are
-the intended interface for Milestone 1 and later.
+This guide describes the local and team-trial operations targeted by Milestone 1
+and later.
 
 ## Local Startup
 
@@ -23,8 +23,8 @@ Expected services:
 make down
 ```
 
-The gateway stack should stop cleanly without deleting SigNoz data by default.
-Destructive cleanup should be a separate, clearly named target.
+The gateway stack stops without deleting SigNoz data by default. Destructive
+cleanup needs a separate target.
 
 ## Logs
 
@@ -70,20 +70,20 @@ docker compose -f compose/docker-compose.gateway.yml exec auth-api \
 
 ## Smoke Tests
 
-Invalid token should fail:
+Invalid token path:
 
 ```sh
 curl -i http://localhost:8088/v1/logs \
   -H 'Authorization: Bearer invalid'
 ```
 
-Valid token should reach the Collector:
+Valid token path:
 
 ```sh
 make smoke TOKEN=<issued-token>
 ```
 
-SigNoz should show a test log with:
+SigNoz must show a test log with:
 
 - `telemetry.user.email`
 - `telemetry.team.id`
@@ -104,12 +104,12 @@ Container health:
 docker compose -f compose/docker-compose.gateway.yml ps
 ```
 
-Collector health should also be visible in the Collector health dashboard once
-dashboards are imported.
+Collector health is visible in the Collector health dashboard after dashboard
+import.
 
 ## Dashboard Import
 
-Dashboard JSON files should live under:
+Dashboard JSON files live under:
 
 ```text
 infra/signoz/dashboards/
@@ -122,8 +122,8 @@ Initial files:
 - `team-usage.json`
 - `collector-health.json`
 
-Dashboard import docs should live in `infra/signoz/README.md` once the first
-dashboard JSON exists.
+Dashboard import docs live in `infra/signoz/README.md` once the first dashboard
+JSON exists.
 
 ## Backup and Restore
 
@@ -147,9 +147,9 @@ data volumes.
 - Monitor Collector queue size, exporter failures, refused telemetry, memory
   limiter activity, and SigNoz disk growth.
 
-## Operator Questions This System Should Answer
+## Operator Questions
 
-- What did Alice's Codex do today?
+- What did a user's Codex do today?
 - Which users generated the most telemetry?
 - Which tools generated the most telemetry?
 - Are Collector exporter queues backing up?

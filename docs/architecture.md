@@ -1,8 +1,8 @@
 # Architecture
 
-This project is an authenticated OpenTelemetry gateway for agent telemetry. It
-is designed as a small internal product with a control plane, ingress, Collector
-gateway, client config generators, SigNoz bootstrap, and dashboards.
+This project defines an authenticated OpenTelemetry gateway for agent telemetry:
+control plane, ingress, Collector gateway, client config generators, SigNoz
+bootstrap, and dashboards.
 
 ## System Diagram
 
@@ -34,18 +34,17 @@ flowchart TD
 ### auth-api
 
 The token/control-plane service owns users, teams, tokens, token revocation, and
-ingest audit records. The first version uses FastAPI and SQLite with a schema
-that can move to Postgres later.
+ingest audit records. V1 uses FastAPI and SQLite with a schema that can move to
+Postgres later.
 
 The service is not a public admin API in v1. Token issuance and user management
-should run through `otelctl` with local DB access or an internal-only admin
-path.
+run through `otelctl` with local DB access or an internal-only admin path.
 
 ### Authenticated Ingress
 
 Nginx is the baseline ingress because `auth_request` keeps the OTLP request body
-untouched while delegating identity checks to `auth-api`. The ingress should
-only accept these OTLP/HTTP paths:
+untouched while delegating identity checks to `auth-api`. The ingress accepts
+only these OTLP/HTTP paths:
 
 ```text
 /v1/logs
@@ -53,13 +52,13 @@ only accept these OTLP/HTTP paths:
 /v1/metrics
 ```
 
-For production, terminate TLS before traffic reaches the gateway. Caddy is a
-reasonable alternative if automatic certificate management is more important
-than matching existing Nginx infrastructure.
+For production, terminate TLS before traffic reaches the gateway. Caddy is an
+alternative when automatic certificate management matters more than matching
+existing Nginx infrastructure.
 
 ### Collector Gateway
 
-The Collector is the enforcement and enrichment point after auth. It should:
+The Collector enforces enrichment after auth:
 
 - receive OTLP/HTTP from ingress only
 - use request metadata to enrich resource attributes
@@ -69,14 +68,13 @@ The Collector is the enforcement and enrichment point after auth. It should:
 - export to SigNoz over the internal Docker network or private subnet
 
 Use `otel/opentelemetry-collector-contrib`, not the core-only image. The contrib
-distribution gives room for processors and exporters that are likely to be
-needed as the trial grows.
+distribution includes processors and exporters for expected trial growth.
 
 ### SigNoz
 
 SigNoz is the v1 backend for UI, dashboards, logs, traces, metrics, and
-ClickHouse-backed storage. Teammates should not post directly to SigNoz's OTLP
-ports. All external ingestion goes through the authenticated gateway.
+ClickHouse-backed storage. Do not expose SigNoz OTLP ports to teammates. All
+external ingestion goes through the authenticated gateway.
 
 ## Trust Boundaries
 
@@ -87,7 +85,7 @@ ports. All external ingestion goes through the authenticated gateway.
   chain. Do not trust client-supplied `X-Forwarded-For` directly.
 - Collector enrichment must use trusted metadata from ingress, not payload
   fields supplied by clients.
-- SigNoz ingestion ports should stay internal.
+- SigNoz ingestion ports must stay internal.
 
 ## Local Port Plan
 
