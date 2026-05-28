@@ -1,0 +1,47 @@
+# Local environment files.
+.env
+.env.*
+!.env.example
+
+# Python caches and virtual environments.
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Build outputs.
+build/
+dist/
+*.egg-info/
+
+# Local databases and generated runtime state.
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-journal
+*.sqlite3-shm
+*.sqlite3-wal
+services/auth-api/*.db
+services/auth-api/*.sqlite
+services/auth-api/*.sqlite3
+services/auth-api/*.sqlite-journal
+services/auth-api/*.sqlite-shm
+services/auth-api/*.sqlite-wal
+services/auth-api/*.sqlite3-journal
+services/auth-api/*.sqlite3-shm
+services/auth-api/*.sqlite3-wal
+
+# SigNoz, vendor, and local Compose output.
+.vendor/
+.signoz/
+signoz-data/
+data/signoz/
+compose/signoz-data/
+infra/signoz/data/
