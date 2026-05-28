@@ -80,7 +80,7 @@ def test_makefile_wires_gateway_targets_and_otelctl_context():
     assert "docker compose -f compose/docker-compose.gateway.yml exec -T auth-api" in makefile
     assert "python /workspace/cli/otelctl/src/otelctl.py" in makefile
     assert "scripts/smoke-test-otel.py" in makefile
-    assert "test -f scripts/smoke-test-otel.py" in makefile
+    assert "AOTEL_SMOKE_TOKEN" in makefile
 
 
 def test_makefile_does_not_create_signoz_managed_network():
