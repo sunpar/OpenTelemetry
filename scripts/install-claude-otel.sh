@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -u patsub_replacement 2>/dev/null || true
 
 usage() {
   cat <<'EOF'

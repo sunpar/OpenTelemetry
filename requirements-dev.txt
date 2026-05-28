@@ -1,0 +1,6 @@
+-e services/auth-api
+-e cli/otelctl
+httpx2>=2,<3
+pytest>=9,<10
+PyYAML>=6,<7
+ruff>=0.15,<1

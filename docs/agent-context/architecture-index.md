@@ -4,15 +4,14 @@ Last updated: 2026-05-28
 
 ## Canonical Docs
 
-- `README.md`: repository purpose, target outcome, planned developer path, and
-  planned tree.
+- `README.md`: repository purpose, target outcome, developer path, and tree.
 - `docs/architecture.md`: gateway data flow, trust boundaries, local ports, and
   baseline Collector config.
 - `docs/token-model.md`: opaque token format, SQLite schema, validation flow,
   auth headers, CLI contract, status codes, and audit rows.
 - `docs/data-model.md`: resource attributes, signal guidance, cardinality
   policy, capture profiles, dashboard dimensions, and normalization rule.
-- `docs/onboarding.md`: planned Codex and Claude Code client config, installers,
+- `docs/onboarding.md`: Codex and Claude Code client config, installers,
   max-capture overlay, and onboarding verification.
 - `docs/operating.md`: target local operations, smoke tests, health checks,
   backup/restore, and production notes.
@@ -24,15 +23,16 @@ Last updated: 2026-05-28
 
 ## Package And Test Status
 
-No package manager, build system, lint command, test runner, Compose file, or CI
-workflow exists yet. See `test-commands.md` for current documentation checks and
-planned milestone verification commands.
+The repository has Python package metadata for `auth-api` and `otelctl`, a
+root `requirements-dev.txt`, Docker Compose contracts, pytest coverage, Ruff
+linting, static validation scripts, and GitHub Actions CI. See
+`test-commands.md` for current local and CI verification commands.
 
 ## Runtime Boundaries
 
 ### Client Tools
 
-Planned clients:
+Supported initial clients:
 
 - Codex
 - Claude Code
@@ -47,7 +47,7 @@ Contract:
 
 ### Authenticated Ingress
 
-Planned files:
+Files:
 
 - `infra/nginx/nginx.conf`
 - optional Caddy alternative later
@@ -63,7 +63,7 @@ Contract:
 
 ### auth-api
 
-Planned files:
+Files:
 
 - `services/auth-api/src/app.py`
 - `services/auth-api/src/db.py`
@@ -84,7 +84,7 @@ Contract:
 
 ### otelctl CLI
 
-Planned files:
+Files:
 
 - `cli/otelctl/src/otelctl.py`
 
@@ -98,7 +98,7 @@ Contract:
 
 ### OpenTelemetry Collector Gateway
 
-Planned files:
+Files:
 
 - `infra/otel/collector.local.yaml`
 - `infra/otel/collector.prod.yaml`
@@ -115,7 +115,7 @@ Contract:
 
 ### SigNoz
 
-Planned files:
+Files:
 
 - `infra/signoz/README.md`
 - `infra/signoz/dashboards/*.json`
@@ -196,9 +196,8 @@ analytics or archival requirement appears.
 
 ## Known Unknowns
 
-- Final Python packaging, dependency manager, and runtime are not present.
-- No implementation language is locked for `otelctl` beyond the planned path.
 - No deployment environment or TLS termination layer is implemented.
 - No dashboard JSON schema has been validated against SigNoz yet.
 - No Collector config has been run through a Collector binary yet.
-- No CI has been selected.
+- CI validates unit, static, and Compose contracts, but does not start the full
+  SigNoz stack.

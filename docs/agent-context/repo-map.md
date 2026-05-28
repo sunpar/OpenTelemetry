@@ -4,24 +4,19 @@ Last updated: 2026-05-28
 
 ## Repository Status
 
-This repository is currently documentation-only. It defines the implementation
-contract for an authenticated OpenTelemetry gateway for agent telemetry, but it
-does not yet contain runnable services, Compose files, installers, dashboards,
-tests, CI, or package manager metadata.
+This repository now contains the local MVP implementation for an authenticated
+OpenTelemetry gateway for agent telemetry. The implementation includes runnable
+auth-api and `otelctl` Python packages, Compose contracts, ingress and Collector
+configs, installer scripts, smoke/security scripts, SigNoz dashboard JSON, and
+CI.
 
 ## Package Manager And Build Files
 
-No package manager or build files exist yet.
+Current package, build, and validation files:
 
-Absent files checked:
-
-- `package.json`
-- `pyproject.toml`
-- `requirements.txt`
-- `go.mod`
-- `Cargo.toml`
+- `requirements-dev.txt`
 - `Makefile`
-- `justfile`
+- `pyproject.toml`
 - `docker-compose*.yml`
 - `.github/workflows/*`
 
@@ -29,6 +24,33 @@ Absent files checked:
 
 ```text
 README.md
+.github/
+  workflows/
+    ci.yml
+requirements-dev.txt
+Makefile
+compose/
+  docker-compose.gateway.yml
+  docker-compose.signoz.yml
+  docker-compose.signoz.override.yml
+infra/
+  nginx/
+    nginx.conf
+  otel/
+    collector.local.yaml
+    collector.prod.yaml
+    processors/
+      normalize-agent-fields.yaml
+  signoz/
+    README.md
+    dashboards/
+services/
+  auth-api/
+cli/
+  otelctl/
+scripts/
+templates/
+tests/
 docs/
   architecture.md
   data-model.md
@@ -44,10 +66,10 @@ docs/
     test-commands.md
 ```
 
-## Planned Source Boundaries
+## Source Boundaries
 
-The planned implementation shape is documented in `README.md` and
-`docs/milestones.md`. These directories do not exist yet:
+The implementation shape is documented in `README.md` and
+`docs/milestones.md`:
 
 - `compose/`: Docker Compose entry points for gateway, SigNoz, and optional
   warehouse profile.
@@ -62,10 +84,6 @@ The planned implementation shape is documented in `README.md` and
 
 ## Entry Points
 
-No executable entry points exist in the current tree.
-
-Planned entry points:
-
 - `make signoz-up`: start SigNoz for local trial.
 - `make up`: start auth-api, Nginx ingress, and Collector gateway.
 - `make user EMAIL=... TEAM=...`: create or update a user.
@@ -79,12 +97,11 @@ Planned entry points:
 - `otelctl users disable`
 - `scripts/install-codex-otel.sh`
 - `scripts/install-claude-otel.sh`
+- `scripts/smoke-test-otel.py`
+- `scripts/send-test-log.py`
+- `.github/workflows/ci.yml`
 
 ## Config Surfaces
-
-Current config exists only as documentation snippets.
-
-Planned config files:
 
 - `infra/nginx/nginx.conf`: `auth_request` ingress for `/v1/logs`,
   `/v1/traces`, and `/v1/metrics`.
@@ -156,13 +173,11 @@ Cardinality-sensitive fields:
 
 ## Known Unknowns
 
-- Final service language and packaging are not implemented.
-- Build, lint, and test commands are documentation-only until package manager
-  files and source directories exist.
-- No auth-api DB migration strategy exists yet.
-- No Compose network topology exists yet.
-- No dashboard JSON exists yet.
-- No SigNoz bootstrap mechanism exists yet.
-- No CI provider or workflow exists yet.
+- Live end-to-end ingestion through SigNoz still needs to be run on a real
+  local stack.
+- Dashboard JSON has not been imported into a live SigNoz instance.
+- The Collector config has not been validated with the Collector binary.
+- Production TLS termination and deployment environment are not selected.
+- SQLite is the v1 persistence layer; Postgres migration remains future work.
 - Codex telemetry config must be re-verified against the installed Codex CLI
   before shipping the installer.
