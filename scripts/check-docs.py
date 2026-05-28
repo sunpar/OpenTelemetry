@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {".git", ".pytest_cache", ".ruff_cache", ".venv", ".vendor", ".signoz"}
+TEXT_NAMES = {"Dockerfile", "Makefile"}
 TEXT_SUFFIXES = {
     ".env",
     ".example",
@@ -32,7 +33,7 @@ def tracked_text_files() -> list[Path]:
             continue
         if any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts):
             continue
-        if path.name == "Makefile" or path.suffix in TEXT_SUFFIXES:
+        if path.name in TEXT_NAMES or path.suffix in TEXT_SUFFIXES:
             files.append(path)
     return sorted(files)
 

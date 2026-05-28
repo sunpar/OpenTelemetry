@@ -158,7 +158,7 @@ CI currently runs:
 - `ruff check`
 - `pytest`
 - docs, dashboard JSON, and shell syntax checks
-- `git diff --check`
+- `git diff --check` against the committed PR or push range
 - Docker Compose config validation for gateway and SigNoz wrapper files
 
 CI intentionally does not start the full SigNoz stack or run live telemetry

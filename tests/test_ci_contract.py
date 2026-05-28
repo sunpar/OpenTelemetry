@@ -19,6 +19,9 @@ def test_ci_workflow_covers_core_validation_paths():
         "static-validation",
         "compose-validation",
     }
+    static_checkout = workflow["jobs"]["static-validation"]["steps"][0]
+    assert static_checkout["uses"] == "actions/checkout@v4"
+    assert static_checkout["with"]["fetch-depth"] == 0
 
     rendered = WORKFLOW.read_text()
     for expected in [
@@ -27,6 +30,9 @@ def test_ci_workflow_covers_core_validation_paths():
         "python -m pytest -q",
         "python scripts/check-docs.py",
         "git diff --check",
+        "fetch-depth: 0",
+        "origin/${GITHUB_BASE_REF}...HEAD",
+        "${{ github.event.before }}",
         "docker compose -f compose/docker-compose.gateway.yml config",
         "docker compose -f compose/docker-compose.signoz.yml config",
     ]:
@@ -42,6 +48,7 @@ def test_dev_requirements_install_local_packages_and_test_tools():
         "pytest",
         "ruff",
         "PyYAML",
+        "httpx",
         "httpx2",
     ]:
         assert expected in requirements

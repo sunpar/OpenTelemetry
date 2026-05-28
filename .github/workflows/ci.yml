@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,6 +43,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -56,7 +60,14 @@ jobs:
         run: python scripts/check-docs.py
 
       - name: Check git whitespace
-        run: git diff --check
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "origin/${GITHUB_BASE_REF}...HEAD"
+          elif [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
+            git diff-tree --check --no-commit-id --root -r "$GITHUB_SHA"
+          else
+            git diff --check "${{ github.event.before }}" "$GITHUB_SHA"
+          fi
 
   compose-validation:
     name: Compose Validation
