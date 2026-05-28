@@ -69,6 +69,7 @@ Run repository static checks:
 ```sh
 .venv/bin/python scripts/check-docs.py
 git diff --check
+git diff --cached --check
 ```
 
 `scripts/check-docs.py` validates:
@@ -78,6 +79,15 @@ git diff --check
 - TOML snippets in `docs/onboarding.md`
 - SigNoz dashboard JSON
 - shell syntax for `scripts/*.sh`
+
+Validate Compose contracts:
+
+```sh
+make compose-config
+```
+
+`make compose-config` validates the gateway compose file, the SigNoz wrapper,
+and the SigNoz upstream compose plus safe override path used by `make signoz-up`.
 
 ## Targeted Test Commands
 

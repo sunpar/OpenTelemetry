@@ -30,6 +30,7 @@ def test_ci_workflow_covers_core_validation_paths():
         "python -m pytest -q",
         "python scripts/check-docs.py",
         "git diff --check",
+        "bash scripts/check-signoz-compose-config.sh",
         "fetch-depth: 0",
         "origin/${GITHUB_BASE_REF}...HEAD",
         "${{ github.event.before }}",
@@ -68,9 +69,11 @@ def test_makefile_exposes_local_validation_contract():
         "static-check:",
         "$(PYTHON) scripts/check-docs.py",
         "git diff --check",
+        "git diff --cached --check",
         "compose-config:",
         "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null",
         "$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null",
+        "bash scripts/check-signoz-compose-config.sh",
         "check: lint test static-check compose-config",
     ]:
         assert expected in makefile

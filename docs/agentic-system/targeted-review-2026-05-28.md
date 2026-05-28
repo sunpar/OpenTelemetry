@@ -266,6 +266,12 @@ Changes:
 - Added tests that assert the root validation contract is wired.
 - Updated agent-context docs with the Make-based verification path.
 
+Review follow-up:
+
+- `static-check` now validates both unstaged and staged whitespace changes.
+- `compose-config` now validates the same SigNoz upstream compose plus safe
+  override path used by `make signoz-up`; CI runs the same override check.
+
 Verification:
 
 ```sh

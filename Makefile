@@ -72,10 +72,12 @@ test:
 static-check:
 	$(PYTHON) scripts/check-docs.py
 	git diff --check
+	git diff --cached --check
 
 compose-config:
 	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null
 	$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null
+	DOCKER_COMPOSE="$(DOCKER_COMPOSE)" SIGNOZ_VENDOR_DIR="$(SIGNOZ_VENDOR_DIR)" SIGNOZ_COMPOSE_OVERRIDE="$(SIGNOZ_COMPOSE_OVERRIDE)" bash scripts/check-signoz-compose-config.sh
 
 check: lint test static-check compose-config
 

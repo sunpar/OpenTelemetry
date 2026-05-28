@@ -7,6 +7,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose/docker-compose.signoz.yml"
 OVERRIDE_FILE = ROOT / "compose/docker-compose.signoz.override.yml"
+COMPOSE_CHECK_SCRIPT = ROOT / "scripts/check-signoz-compose-config.sh"
 SIGNOZ_README = ROOT / "infra/signoz/README.md"
 UPSTREAM_REVISION = "a8f5bdf2562c35c2896a5a287552e124fa2c0037"
 
@@ -105,6 +106,21 @@ def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
     ]
     assert "ports" not in config["services"]["otel-collector"]
     assert "signoz-net" in config["services"]["otel-collector"]["networks"]
+
+
+def test_signoz_compose_check_script_validates_override_stack(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIGNOZ_VENDOR_DIR", str(tmp_path / "missing-signoz-vendor"))
+
+    result = subprocess.run(
+        ["bash", str(COMPOSE_CHECK_SCRIPT)],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_signoz_readme_documents_bootstrap_and_private_ingestion():
