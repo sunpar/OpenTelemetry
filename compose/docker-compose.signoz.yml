@@ -1,0 +1,15 @@
+name: agent-otel-signoz
+
+x-agent-otel-signoz:
+  strategy: official-compose-wrapper
+  upstream: https://github.com/SigNoz/signoz.git
+  upstream_compose: .vendor/signoz/deploy/docker/docker-compose.yaml
+  purpose: >
+    Keep this repository small while documenting the shared Docker network and
+    private-ingestion contract used by the gateway stack.
+
+services: {}
+
+networks:
+  signoz:
+    name: ${SIGNOZ_NETWORK:-signoz-net}
