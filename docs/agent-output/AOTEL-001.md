@@ -14,10 +14,8 @@ Implemented the initial project scaffold for the Agent OpenTelemetry trial:
 
 ## Verification
 
-Run from `/Users/sunpar/Documents/OpenTelemetry-worktrees/aotel-001-scaffold`:
-
 ```sh
-PATH="$PWD/.venv/bin:$PATH" python -m pytest -q
+python -m pytest -q
 ```
 
 Result:

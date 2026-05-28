@@ -23,6 +23,7 @@ help:
 	@printf '%s\n' ''
 	@printf '%s\n' 'Available targets:'
 	@printf '%s\n' '  make signoz-up       Start the local SigNoz backend once compose/docker-compose.signoz.yml exists.'
+	@printf '%s\n' '  make signoz-down     Stop the local SigNoz backend once compose/docker-compose.signoz.yml exists.'
 	@printf '%s\n' '  make up              Start the gateway stack once compose/docker-compose.gateway.yml exists.'
 	@printf '%s\n' '  make down            Stop the gateway stack once compose/docker-compose.gateway.yml exists.'
 	@printf '%s\n' '  make logs            Follow gateway stack logs once compose/docker-compose.gateway.yml exists.'
@@ -41,7 +42,10 @@ signoz-up:
 signoz-down:
 	$(call not_implemented,$@,compose/docker-compose.signoz.yml is planned for AOTEL-008.)
 
-gateway-up up:
+gateway-up:
+	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
+
+up:
 	$(call not_implemented,$@,compose/docker-compose.gateway.yml is planned for AOTEL-007.)
 
 down:

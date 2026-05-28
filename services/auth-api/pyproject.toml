@@ -13,6 +13,10 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["auth_api*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

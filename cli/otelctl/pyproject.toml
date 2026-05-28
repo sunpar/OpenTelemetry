@@ -9,6 +9,13 @@ description = "Local operator CLI for the agent OpenTelemetry trial"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+otelctl = "otelctl.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["otelctl*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

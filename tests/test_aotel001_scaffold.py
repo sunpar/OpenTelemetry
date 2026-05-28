@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import subprocess
 import tomllib
 from pathlib import Path
@@ -13,6 +14,7 @@ def test_makefile_defines_documented_entry_points():
     for target in [
         "help",
         "signoz-up",
+        "signoz-down",
         "up",
         "down",
         "logs",
@@ -22,7 +24,7 @@ def test_makefile_defines_documented_entry_points():
         "install-codex",
         "install-claude",
     ]:
-        assert f"{target}:" in makefile
+        assert re.search(rf"^{re.escape(target)}\s*:", makefile, re.MULTILINE)
 
     assert "not implemented yet" in makefile.lower()
 
@@ -54,6 +56,10 @@ def test_gitignore_covers_local_generated_artifacts():
         ".pytest_cache/",
         ".venv/",
         "*.sqlite3",
+        "*.sqlite3-wal",
+        "*.sqlite3-shm",
+        "*.sqlite3-journal",
+        "services/auth-api/*.sqlite3-wal",
         ".vendor/",
         "signoz-data/",
     ]:
@@ -72,11 +78,14 @@ def test_python_package_metadata_is_valid():
         assert data["project"]["requires-python"] == ">=3.11"
         assert data["build-system"]["build-backend"] == "setuptools.build_meta"
 
+    cli_data = tomllib.loads((ROOT / "cli/otelctl/pyproject.toml").read_text())
+    assert cli_data["project"]["scripts"]["otelctl"] == "otelctl.__main__:main"
+
 
 def test_initial_source_packages_import_cleanly():
     for relative_init in [
-        "services/auth-api/src/__init__.py",
-        "cli/otelctl/src/__init__.py",
+        "services/auth-api/src/auth_api/__init__.py",
+        "cli/otelctl/src/otelctl/__init__.py",
     ]:
         module_name = relative_init.replace("/", "_").replace("-", "_").replace(".py", "")
         spec = importlib.util.spec_from_file_location(module_name, ROOT / relative_init)
@@ -98,6 +107,7 @@ def test_make_help_runs_without_downstream_services():
 
     assert result.returncode == 0
     assert "Agent OpenTelemetry Trial" in result.stdout
+    assert "make signoz-down" in result.stdout
     assert result.stderr == ""
 
 
