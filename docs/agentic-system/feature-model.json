@@ -4,23 +4,35 @@
     "name": "OpenTelemetry",
     "root": "/Users/sunpar/Documents/OpenTelemetry",
     "analyzed_at": "2026-05-28",
-    "primary_languages": [],
-    "package_managers": [],
+    "primary_languages": [
+      "Python",
+      "Shell",
+      "YAML"
+    ],
+    "package_managers": [
+      "pip",
+      "setuptools"
+    ],
     "test_commands": [
       "git diff --check",
-      "/opt/homebrew/bin/python3.11 docs/onboarding.md TOML snippet parse check",
-      "python3 internal markdown link check"
+      "python -m pytest -q",
+      "python -m ruff check .",
+      "python scripts/check-docs.py",
+      "docker compose -f compose/docker-compose.gateway.yml config",
+      "docker compose -f compose/docker-compose.signoz.yml config"
     ],
-    "ci_files": []
+    "ci_files": [
+      ".github/workflows/ci.yml"
+    ]
   },
-  "codebase_summary": "The repository is documentation-only. It defines an authenticated OpenTelemetry gateway product for agent telemetry, including auth-api, OTLP ingress, Collector gateway, SigNoz backend, client onboarding generators, dashboards, operations, retention, and troubleshooting contracts.",
+  "codebase_summary": "The repository contains a local MVP implementation for an authenticated OpenTelemetry gateway product for agent telemetry, including auth-api, OTLP ingress, Collector gateway, SigNoz backend bootstrap material, client onboarding generators, dashboards, operations, retention, tests, and CI contracts.",
   "architecture": {
     "components": [
       {
         "id": "C01",
         "name": "auth-api",
         "summary": "FastAPI and SQLite control-plane service for users, opaque tokens, validation, trusted identity headers, and ingest audit rows.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/architecture.md",
           "docs/token-model.md"
@@ -30,7 +42,7 @@
         "id": "C02",
         "name": "authenticated-ingress",
         "summary": "Nginx or Caddy OTLP/HTTP ingress that authenticates through auth-api, preserves payloads, and overwrites trusted telemetry headers.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/architecture.md",
           "docs/troubleshooting.md"
@@ -40,7 +52,7 @@
         "id": "C03",
         "name": "collector-gateway",
         "summary": "OpenTelemetry Collector contrib gateway with metadata enrichment, resource attributes, agent normalization, batching, retry, and SigNoz export.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/architecture.md",
           "docs/data-model.md"
@@ -50,7 +62,7 @@
         "id": "C04",
         "name": "signoz-backend",
         "summary": "SigNoz self-hosted backend for logs, traces, metrics, dashboards, retention, and ClickHouse-backed storage.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/architecture.md",
           "docs/storage-retention.md"
@@ -60,7 +72,7 @@
         "id": "C05",
         "name": "client-onboarding",
         "summary": "Codex and Claude Code config templates and installers with content-minimal defaults and explicit max-capture profile.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/onboarding.md"
         ]
@@ -69,7 +81,7 @@
         "id": "C06",
         "name": "operations-and-validation",
         "summary": "Make targets, smoke tests, troubleshooting, health checks, backup notes, retention guardrails, and team trial acceptance checks.",
-        "status": "planned",
+        "status": "implemented",
         "docs": [
           "docs/operating.md",
           "docs/milestones.md",
@@ -125,9 +137,7 @@
         "Revoked, expired, disabled-user, and scoped token failures must be deterministic.",
         "Max-capture profile must be explicit and short-lived."
       ],
-      "doc_code_mismatches": [
-        "No implementation exists yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     },
     {
@@ -175,9 +185,7 @@
         "Direct Collector or SigNoz ingestion exposure bypasses auth.",
         "Client-supplied X-Forwarded-For can spoof source IP if not reconstructed."
       ],
-      "doc_code_mismatches": [
-        "No ingress config exists yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     },
     {
@@ -226,9 +234,7 @@
         "Resource processor context keys must match forwarded header names.",
         "Exporter queue and retry health must be observable."
       ],
-      "doc_code_mismatches": [
-        "No Collector config exists yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     },
     {
@@ -368,9 +374,7 @@
         "High-cardinality fields must not become default metric group-bys.",
         "Dashboard JSON schema must be validated against SigNoz."
       ],
-      "doc_code_mismatches": [
-        "No dashboard JSON exists yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "medium"
     },
     {
@@ -472,17 +476,16 @@
     }
   ],
   "unknowns": [
-    "No implementation package manager is selected beyond the planned FastAPI and Python CLI direction.",
-    "No CI provider or job matrix exists.",
+    "Live end-to-end ingestion through SigNoz still needs to be run on a real local stack.",
     "No SigNoz dashboard JSON has been validated against a live SigNoz instance.",
     "Codex telemetry config must be re-verified against the installed CLI before shipping the installer.",
     "No deployment environment or TLS termination layer is implemented.",
-    "No database migration mechanism is selected."
+    "SQLite is the v1 persistence layer; Postgres migration remains future work."
   ],
   "evidence": [
     {
       "path": "README.md",
-      "summary": "Defines the product scope, target telemetry endpoint, planned developer path, and planned repository shape."
+      "summary": "Defines the product scope, target telemetry endpoint, developer path, and repository shape."
     },
     {
       "path": "docs/architecture.md",
@@ -506,7 +509,7 @@
     },
     {
       "path": "docs/agent-context/repo-map.md",
-      "summary": "Records that the repo is currently documentation-only and lists planned source boundaries."
+      "summary": "Records current source boundaries, entry points, risk hotspots, and remaining live-validation unknowns."
     }
   ]
 }

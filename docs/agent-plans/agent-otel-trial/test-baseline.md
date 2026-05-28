@@ -4,65 +4,95 @@ Last updated: 2026-05-28
 
 ## Baseline Summary
 
-The repository is currently documentation-only. No source implementation, package
-manager metadata, test runner, Compose files, or CI workflow exists yet.
+The repository has an implemented local MVP baseline for the authenticated agent
+OpenTelemetry gateway:
 
-## Commands Run
+- FastAPI auth-api package
+- local `otelctl` CLI package
+- Nginx ingress config
+- OpenTelemetry Collector configs
+- Docker Compose contracts
+- SigNoz bootstrap wrapper and dashboards
+- Codex and Claude Code installers
+- smoke/security scripts
+- GitHub Actions CI
 
-```sh
-find . -maxdepth 3 -type f \( -name 'package.json' -o -name 'pyproject.toml' -o -name 'requirements.txt' -o -name 'go.mod' -o -name 'Cargo.toml' -o -name 'Makefile' -o -name 'justfile' -o -name 'docker-compose*.yml' -o -name '*.yaml' -o -name '*.yml' \) -print | sort
-```
-
-Result: no package/build/Compose files found.
-
-```sh
-git diff --check
-```
-
-Result: clean after generated artifacts are validated.
-
-```sh
-/opt/homebrew/bin/python3.11 - <<'PY'
-from pathlib import Path
-import re, tomllib
-text = Path('docs/onboarding.md').read_text()
-for i, block in enumerate(re.findall(r'```toml\n(.*?)\n```', text, re.S), 1):
-    tomllib.loads(block.replace('<TOKEN>', 'TOKEN'))
-    print(f'toml block {i} ok')
-PY
-```
-
-Result: onboarding TOML snippets parse.
-
-```sh
-python3 internal markdown link check over README.md and docs/**/*.md
-```
-
-Result: internal Markdown links pass.
-
-## Known Non-Executable Commands
-
-These commands are planned contracts and are expected to fail until later tasks
-create implementation files:
-
-- `make signoz-up`
-- `make up`
-- `make user EMAIL=alice@example.com TEAM=quant-dev`
-- `make token EMAIL=alice@example.com`
-- `make smoke TOKEN=<issued-token>`
-- `python -m pytest`
-- `docker compose -f compose/docker-compose.gateway.yml config`
-- `docker compose -f compose/docker-compose.signoz.yml config`
+The local unit and contract suite currently passes with one opt-in live smoke
+test skipped unless the gateway stack and a real token are provided.
 
 ## Environment Assumptions
 
 - macOS local development environment.
 - `zsh` shell.
 - Python 3.11 available at `/opt/homebrew/bin/python3.11`.
-- Codex CLI available for `codex doctor` config-load checks.
-- Docker availability has not been verified in this baseline.
+- Docker and Docker Compose available for Compose config validation.
+- Codex CLI available only for optional manual client verification.
 
-## Failure List
+## Setup Commands
 
-No implementation test failures are recorded because no implementation test
-suite exists yet.
+```sh
+/opt/homebrew/bin/python3.11 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements-dev.txt
+```
+
+## Baseline Commands
+
+```sh
+.venv/bin/python -m pytest -q
+```
+
+Expected result:
+
+```text
+94 passed, 1 skipped
+```
+
+```sh
+.venv/bin/python -m ruff check .
+```
+
+Expected result:
+
+```text
+All checks passed!
+```
+
+```sh
+.venv/bin/python scripts/check-docs.py
+git diff --check
+```
+
+Expected result: no reported failures.
+
+```sh
+docker compose -f compose/docker-compose.gateway.yml config
+docker compose -f compose/docker-compose.signoz.yml config
+```
+
+Expected result: both Compose files render successfully.
+
+## Live Checks
+
+Run these only when Docker can start containers and a real token is available:
+
+```sh
+make signoz-up
+make up
+make user EMAIL=alice@example.com TEAM=quant-dev
+make token EMAIL=alice@example.com
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
+```
+
+The equivalent pytest smoke path is:
+
+```sh
+AOTEL_RUN_COMPOSE_SMOKE=1 AOTEL_SMOKE_TOKEN=<issued-token> \
+  .venv/bin/python -m pytest tests/test_aotel009_smoke_scripts.py -q
+```
+
+## Current Failure List
+
+No baseline unit, lint, docs, or Compose config failures are expected. The
+remaining unproven areas are live SigNoz ingestion, dashboard import behavior,
+Collector binary validation, and real Codex/Claude telemetry emission.
