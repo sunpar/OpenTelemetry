@@ -9,7 +9,7 @@ MAX_TEMPLATE = ROOT / "templates/claude.max-capture.env"
 INSTALLER = ROOT / "scripts/install-claude-otel.sh"
 
 
-def _run_installer(tmp_path, *extra_args):
+def _run_installer(tmp_path, *extra_args, token="aotel_live_tok_abc_secret"):
     output = tmp_path / "claude.otel.env"
     result = subprocess.run(
         [
@@ -18,7 +18,7 @@ def _run_installer(tmp_path, *extra_args):
             "--endpoint",
             "http://localhost:8088/",
             "--token",
-            "aotel_live_tok_abc_secret",
+            token,
             "--output",
             str(output),
             *extra_args,
@@ -65,8 +65,8 @@ def test_installer_normal_profile_writes_safe_defaults(tmp_path):
     assert "CLAUDE_CODE_ENABLE_TELEMETRY=1" in text
     assert "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1" in text
     assert "OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf" in text
-    assert 'OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:8088"' in text
-    assert 'OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer aotel_live_tok_abc_secret"' in text
+    assert "OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8088" in text
+    assert "Authorization=Bearer" in text
     assert "OTEL_METRICS_INCLUDE_SESSION_ID=false" in text
 
     for forbidden in [
@@ -75,22 +75,21 @@ def test_installer_normal_profile_writes_safe_defaults(tmp_path):
         "OTEL_LOG_TOOL_CONTENT",
         "OTEL_LOG_RAW_API_BODIES",
     ]:
-        assert forbidden not in text
+        assert f"unset {forbidden}" in text
 
     env = _source_env(output)
     assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://localhost:8088"
     assert env["OTEL_EXPORTER_OTLP_HEADERS"] == "Authorization=Bearer aotel_live_tok_abc_secret"
+    for cleared in [
+        "OTEL_LOG_USER_PROMPTS",
+        "OTEL_LOG_TOOL_DETAILS",
+        "OTEL_LOG_TOOL_CONTENT",
+        "OTEL_LOG_RAW_API_BODIES",
+    ]:
+        assert cleared not in env
 
 
-def test_installer_max_profile_requires_matching_token_capture_profile(tmp_path):
-    result, output = _run_installer(tmp_path, "--profile", "max")
-
-    assert result.returncode == 2
-    assert not output.exists()
-    assert "requires --token-capture-profile max" in result.stderr
-
-
-def test_installer_max_profile_includes_explicit_capture_overlay(tmp_path):
+def test_installer_max_profile_refuses_without_trusted_token_metadata(tmp_path):
     result, output = _run_installer(
         tmp_path,
         "--profile",
@@ -99,18 +98,52 @@ def test_installer_max_profile_includes_explicit_capture_overlay(tmp_path):
         "max",
     )
 
+    assert result.returncode == 2
+    assert not output.exists()
+    assert "trusted token metadata" in result.stderr
+
+
+def test_installer_escapes_opaque_secret_values(tmp_path):
+    token = 'tok&sec $HOME `touch should-not-run` "quoted" \\ slash'
+    result, output = _run_installer(
+        tmp_path,
+        token=token,
+    )
+
     assert result.returncode == 0, result.stderr
+    assert token not in result.stdout
     text = output.read_text()
-    for expected in [
-        "OTEL_LOG_USER_PROMPTS=1",
-        "OTEL_LOG_TOOL_DETAILS=1",
-        "OTEL_LOG_TOOL_CONTENT=1",
-        "OTEL_LOG_RAW_API_BODIES=1",
-    ]:
-        assert expected in text
+    assert "{{TOKEN}}" not in text
+    assert "tok{{TOKEN}}sec" not in text
 
     env = _source_env(output)
-    assert env["OTEL_LOG_RAW_API_BODIES"] == "1"
+    assert env["OTEL_EXPORTER_OTLP_HEADERS"] == f"Authorization=Bearer {token}"
+
+
+def test_installer_handles_token_equals_form_without_leaking_secret(tmp_path):
+    output = tmp_path / "claude.otel.env"
+    secret = "secret-value"
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALLER),
+            "--endpoint",
+            "http://localhost:8088/",
+            f"--token={secret}",
+            "--output",
+            str(output),
+        ],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert secret not in result.stdout
+    assert secret not in result.stderr
+    env = _source_env(output)
+    assert env["OTEL_EXPORTER_OTLP_HEADERS"] == f"Authorization=Bearer {secret}"
 
 
 def test_installer_does_not_modify_shell_startup_files(tmp_path):
@@ -147,3 +180,26 @@ def test_installer_does_not_modify_shell_startup_files(tmp_path):
 def test_claude_installer_script_is_parseable_shell():
     result = subprocess.run(["bash", "-n", str(INSTALLER)], check=False, text=True)
     assert result.returncode == 0
+
+
+def test_make_install_claude_invokes_installer(tmp_path):
+    output = tmp_path / "make-claude.env"
+    result = subprocess.run(
+        [
+            "make",
+            "install-claude",
+            "ENDPOINT=http://localhost:8088/",
+            "TOKEN=tok",
+            f"OUTPUT={output}",
+        ],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert output.exists()
+    env = _source_env(output)
+    assert env["OTEL_EXPORTER_OTLP_HEADERS"] == "Authorization=Bearer tok"

@@ -9,24 +9,27 @@ Implemented Claude Code onboarding artifacts:
 - `templates/claude.max-capture.env` overlay for prompt, tool, content, and raw
   API body capture
 - `scripts/install-claude-otel.sh` with `--endpoint`, `--token`, `--profile`,
-  `--token-capture-profile`, and `--output`
-- max profile refusal unless `--token-capture-profile max` is provided
+  and `--output`
+- max profile refusal until trusted token metadata is available
+- shell-quoted endpoint and bearer header rendering for opaque secrets
+- normal profile clears high-capture variables inherited from the parent shell
+- `make install-claude ENDPOINT=... TOKEN=...` invokes the installer
 - no shell startup file mutation
-- tests for generated shell syntax, safe normal defaults, max-capture overlay,
-  and startup-file preservation
+- tests for generated shell syntax, safe normal defaults, max-profile refusal,
+  secret rendering, `--token=<secret>`, Make wiring, and startup-file preservation
 
 ## Verification
 
-Run from `/Users/sunpar/Documents/OpenTelemetry-worktrees/aotel-001-scaffold`:
+Run from `/Users/sunpar/Documents/OpenTelemetry-worktrees/aotel-011-claude-onboarding`:
 
 ```sh
-PATH="$PWD/.venv/bin:$PATH" python -m pytest -q
+PATH="/Users/sunpar/Documents/OpenTelemetry-worktrees/aotel-001-scaffold/.venv/bin:$PATH" python -m pytest -q
 ```
 
 Result:
 
 ```text
-33 passed in 0.40s
+35 passed in 0.66s
 ```
 
 ```sh
@@ -48,5 +51,5 @@ Result: clean.
 
 ## Risks
 
-- The max-profile check is argument-based until auth-api/otelctl can pass
-  trusted token metadata into the installer.
+- The installer refuses max capture until auth-api/otelctl can pass trusted
+  token metadata into the installer.
