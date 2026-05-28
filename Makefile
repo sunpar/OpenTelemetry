@@ -19,6 +19,7 @@ PROFILE ?= normal
 PYTHON ?= python3
 SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
+SIGNOZ_UPSTREAM_REVISION ?= a8f5bdf2562c35c2896a5a287552e124fa2c0037
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
 TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
 OTELCTL_CONTAINER_PYTHONPATH := /workspace/packages/auth-core/src:/workspace/cli/otelctl/src
@@ -85,8 +86,10 @@ check: lint test static-check compose-config
 signoz-up:
 	@mkdir -p .vendor
 	@if [ ! -d "$(SIGNOZ_VENDOR_DIR)/.git" ]; then \
-		git clone -b main https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
+		git clone https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
 	fi
+	git -C "$(SIGNOZ_VENDOR_DIR)" fetch --depth 1 origin "$(SIGNOZ_UPSTREAM_REVISION)"
+	git -C "$(SIGNOZ_VENDOR_DIR)" checkout --detach "$(SIGNOZ_UPSTREAM_REVISION)"
 	$(DOCKER_COMPOSE) -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
 
 signoz-down:

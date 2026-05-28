@@ -7,6 +7,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose/docker-compose.signoz.yml"
+MAKEFILE = ROOT / "Makefile"
 OVERRIDE_FILE = ROOT / "compose/docker-compose.signoz.override.yml"
 COMPOSE_CHECK_SCRIPT = ROOT / "scripts/check-signoz-compose-config.sh"
 SIGNOZ_README = ROOT / "infra/signoz/README.md"
@@ -130,6 +131,24 @@ def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
     assert SIGNOZ_NETWORK_NAME in config["services"]["otel-collector"]["networks"]
     collector_command = "\n".join(config["services"]["otel-collector"]["command"])
     _assert_static_collector_config_without_opamp(collector_command)
+
+
+def test_signoz_makefile_startup_uses_pinned_upstream_revision():
+    makefile = MAKEFILE.read_text()
+
+    assert f"SIGNOZ_UPSTREAM_REVISION ?= {UPSTREAM_REVISION}" in makefile
+    assert "git clone https://github.com/SigNoz/signoz.git" in makefile
+    assert "git clone -b main" not in makefile
+    fetch_command = (
+        'git -C "$(SIGNOZ_VENDOR_DIR)" fetch --depth 1 origin '
+        '"$(SIGNOZ_UPSTREAM_REVISION)"'
+    )
+    checkout_command = (
+        'git -C "$(SIGNOZ_VENDOR_DIR)" checkout --detach '
+        '"$(SIGNOZ_UPSTREAM_REVISION)"'
+    )
+    assert fetch_command in makefile
+    assert checkout_command in makefile
 
 
 def test_signoz_compose_check_script_validates_override_stack(tmp_path, monkeypatch):

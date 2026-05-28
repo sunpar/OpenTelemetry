@@ -25,6 +25,12 @@ REQUIRED_FILTERS = {
     "agent.capture.profile",
 }
 REQUIRED_IMPORTABLE_FILTERS = REQUIRED_FILTERS | {"service.name"}
+REQUIRED_IMPORTABLE_TIME_VARIABLES = {
+    "start_timestamp",
+    "end_timestamp",
+    "start_timestamp_nano",
+    "end_timestamp_nano",
+}
 IMPORTABLE_WIDGET_FILTERS = {
     "ingest-health": {"service.name"},
 }
@@ -59,6 +65,12 @@ COLLECTOR_SELF_METRICS = (
     "otelcol_processor_refused_metric_points",
 )
 DEPRECATED_COLLECTOR_QUERY_FRAGMENTS = (" + logs", " + spans", " + metric_points")
+SMOKE_IDENTIFIERS = (
+    "aotel-smoke",
+    "agent-otel smoke test log",
+    "agent-otel smoke span",
+    "agent_otel_smoke_metric",
+)
 PROHIBITED_DEFAULT_GROUP_BYS = {
     "agent.session.id",
     "agent.conversation.id",
@@ -125,6 +137,14 @@ def _widget_query_text(widget: dict) -> str:
     return ""
 
 
+def _importable_dashboard_query_text(dashboard: dict) -> str:
+    parts = [
+        variable.get("queryValue", "") for variable in dashboard["variables"].values()
+    ]
+    parts.extend(_widget_query_text(widget) for widget in dashboard["widgets"])
+    return "\n".join(parts)
+
+
 def test_importable_signoz_dashboard_uses_live_dashboard_shape():
     dashboard = _importable_dashboard()
 
@@ -168,10 +188,41 @@ def test_importable_signoz_dashboard_references_filters_without_bad_group_bys():
         )
         query_text = _widget_query_text(widget)
         for variable_name in expected_filters:
-            assert f"{{{{.{variable_name}}}}}" in query_text, widget["id"]
+            assert f"${variable_name}" in query_text, widget["id"]
 
         for field_name in PROHIBITED_DEFAULT_GROUP_BYS:
             assert field_name not in query_text, widget["id"]
+
+
+def test_importable_signoz_dashboard_uses_v5_clickhouse_placeholders():
+    dashboard = _importable_dashboard()
+    query_text = _importable_dashboard_query_text(dashboard)
+
+    for variable_name in REQUIRED_IMPORTABLE_TIME_VARIABLES:
+        assert f"${variable_name}" in query_text
+
+    assert "{{." not in query_text
+
+
+def test_importable_signoz_dashboard_reads_metric_labels_from_labels_column():
+    dashboard = _importable_dashboard()
+    query_text = _importable_dashboard_query_text(dashboard)
+
+    assert "resource_attrs[" not in query_text
+    assert "series.resource_attrs" not in query_text
+    assert "JSONExtractString(labels, 'service.name')" in query_text
+    assert "JSONExtractString(series.labels, 'service.name')" in query_text
+
+
+def test_importable_signoz_dashboard_matches_smoke_payload_identifiers():
+    dashboard = _importable_dashboard()
+    smoke_widget = next(
+        widget for widget in dashboard["widgets"] if widget["id"] == "smoke-test-visibility"
+    )
+    smoke_query = _widget_query_text(smoke_widget)
+
+    for identifier in SMOKE_IDENTIFIERS:
+        assert identifier in smoke_query
 
 
 def test_collector_health_dashboard_tracks_resilience_indicators():
