@@ -46,7 +46,10 @@ def test_dashboard_files_exist_and_parse_as_json():
 def test_dashboards_include_required_filters():
     for name in REQUIRED_DASHBOARDS:
         dashboard = _dashboard(DASHBOARD_DIR / name)
-        assert REQUIRED_FILTERS.issubset(set(dashboard["filters"]))
+        if name == "collector-health.json":
+            assert not REQUIRED_FILTERS.intersection(set(dashboard["filters"]))
+        else:
+            assert REQUIRED_FILTERS.issubset(set(dashboard["filters"]))
 
 
 def test_dashboard_default_group_bys_avoid_high_cardinality_fields():
@@ -67,6 +70,32 @@ def test_collector_health_dashboard_tracks_resilience_indicators():
 
     for expected in ["queue size", "queue capacity", "send failures", "refused", "memory limiter"]:
         assert expected in panel_text
+
+
+def test_collector_health_dashboard_uses_collector_self_metric_names():
+    dashboard = _dashboard(DASHBOARD_DIR / "collector-health.json")
+    query_text = "\n".join(panel["query"] for panel in dashboard["panels"])
+
+    for metric_name in [
+        "otelcol_exporter_send_failed_log_records",
+        "otelcol_exporter_send_failed_spans",
+        "otelcol_exporter_send_failed_metric_points",
+        "otelcol_receiver_refused_log_records",
+        "otelcol_receiver_refused_spans",
+        "otelcol_receiver_refused_metric_points",
+        "otelcol_processor_refused_log_records",
+        "otelcol_processor_refused_spans",
+        "otelcol_processor_refused_metric_points",
+    ]:
+        assert metric_name in query_text
+
+    assert " + logs" not in query_text
+    assert " + spans" not in query_text
+    assert " + metric_points" not in query_text
+    assert "signal" not in set(dashboard["filters"])
+
+    for panel in dashboard["panels"]:
+        assert "signal" not in set(panel.get("group_by", []))
 
 
 def test_signoz_readme_documents_dashboard_import_limitations():
