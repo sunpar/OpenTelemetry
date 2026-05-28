@@ -3,7 +3,8 @@ name: agent-otel-gateway
 services:
   auth-api:
     build:
-      context: ../services/auth-api
+      context: ..
+      dockerfile: services/auth-api/Dockerfile
     environment:
       AUTH_API_DB_PATH: ${AUTH_API_DB_PATH:-/data/auth-api.sqlite3}
       AUTH_API_HOST: 0.0.0.0

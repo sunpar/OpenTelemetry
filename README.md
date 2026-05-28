@@ -84,8 +84,16 @@ agent-otel-trial/
         tokens.py
         models.py
         settings.py
-      migrations/
       tests/
+  packages/
+    auth-core/
+      pyproject.toml
+      src/
+        agent_otel_auth_core/
+          db.py
+          tokens.py
+          models.py
+          migrations/
   cli/
     otelctl/
       pyproject.toml

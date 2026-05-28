@@ -43,6 +43,7 @@ def test_dev_requirements_install_local_packages_and_test_tools():
     requirements = DEV_REQUIREMENTS.read_text()
 
     for expected in [
+        "-e packages/auth-core",
         "-e services/auth-api",
         "-e cli/otelctl",
         "pytest",

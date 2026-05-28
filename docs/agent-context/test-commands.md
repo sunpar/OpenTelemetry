@@ -10,7 +10,7 @@ scripts, dashboard JSON, and GitHub Actions CI.
 Latest local baseline for the merged implementation:
 
 ```text
-94 passed, 1 skipped
+97 passed, 1 skipped
 ```
 
 The skipped test is the opt-in live gateway smoke test, which requires a
@@ -26,8 +26,9 @@ Run from the repository root:
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` installs both local Python packages in editable mode:
+`requirements-dev.txt` installs all local Python packages in editable mode:
 
+- `packages/auth-core`
 - `services/auth-api`
 - `cli/otelctl`
 
@@ -40,6 +41,7 @@ Current package, build, and runtime files:
 ```text
 Makefile
 requirements-dev.txt
+packages/auth-core/pyproject.toml
 cli/otelctl/pyproject.toml
 compose/docker-compose.gateway.yml
 compose/docker-compose.signoz.override.yml

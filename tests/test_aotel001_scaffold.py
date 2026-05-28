@@ -68,6 +68,7 @@ def test_gitignore_covers_local_generated_artifacts():
 
 def test_python_package_metadata_is_valid():
     packages = {
+        "packages/auth-core/pyproject.toml": "agent-otel-auth-core",
         "services/auth-api/pyproject.toml": "agent-otel-auth-api",
         "cli/otelctl/pyproject.toml": "agent-otelctl",
     }
@@ -80,10 +81,15 @@ def test_python_package_metadata_is_valid():
 
     cli_data = tomllib.loads((ROOT / "cli/otelctl/pyproject.toml").read_text())
     assert cli_data["project"]["scripts"]["otelctl"] == "otelctl:entrypoint"
+    assert "agent-otel-auth-core==0.1.0" in cli_data["project"]["dependencies"]
+
+    auth_api_data = tomllib.loads((ROOT / "services/auth-api/pyproject.toml").read_text())
+    assert "agent-otel-auth-core==0.1.0" in auth_api_data["project"]["dependencies"]
 
 
 def test_initial_source_packages_import_cleanly():
     package_versions = {
+        "packages/auth-core/src/agent_otel_auth_core/__init__.py": "0.1.0",
         "services/auth-api/src/auth_api/__init__.py": "0.1.0",
         "cli/otelctl/src/otelctl_auth/__init__.py": None,
     }
