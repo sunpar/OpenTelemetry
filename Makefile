@@ -34,7 +34,7 @@ help:
 	@printf '%s\n' '  make install-codex ENDPOINT=... TOKEN=...'
 	@printf '%s\n' '                       Install Codex telemetry config once the installer exists.'
 	@printf '%s\n' '  make install-claude ENDPOINT=... TOKEN=...'
-	@printf '%s\n' '                       Install Claude Code telemetry env once the installer exists.'
+	@printf '%s\n' '                       Install Claude Code telemetry env.'
 
 signoz-up:
 	$(call not_implemented,$@,compose/docker-compose.signoz.yml is planned for AOTEL-008.)
@@ -75,4 +75,4 @@ install-codex:
 install-claude:
 	$(call require_var,ENDPOINT,make install-claude ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
 	$(call require_var,TOKEN,make install-claude ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)
-	$(call not_implemented,$@,scripts/install-claude-otel.sh is planned for AOTEL-011.)
+	@bash scripts/install-claude-otel.sh --endpoint "$(ENDPOINT)" --token "$(TOKEN)" --profile "$(or $(PROFILE),normal)" --output "$(or $(OUTPUT),./claude.otel.env)"
