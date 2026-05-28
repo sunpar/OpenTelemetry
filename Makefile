@@ -45,7 +45,7 @@ help:
 	@printf '%s\n' '                       Create/update a telemetry user.'
 	@printf '%s\n' '  make token EMAIL=... [TOKEN_NAME=...] [EXPIRES=90d] [CAPTURE_PROFILE=normal|max]'
 	@printf '%s\n' '                       Issue a telemetry token and print onboarding snippets.'
-	@printf '%s\n' '  make smoke TOKEN=... [ENDPOINT=http://localhost:8088]'
+	@printf '%s\n' '  AOTEL_SMOKE_TOKEN=... make smoke [ENDPOINT=http://localhost:8088]'
 	@printf '%s\n' '                       Send test telemetry through the gateway.'
 	@printf '%s\n' '  make install-codex ENDPOINT=... TOKEN=... [PROFILE=normal|max]'
 	@printf '%s\n' '                       Install Codex telemetry config.'
@@ -91,12 +91,16 @@ token:
 	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
-	$(call require_var,TOKEN,make smoke TOKEN=<issued-token>)
-	@test -f scripts/smoke-test-otel.py || { \
-		printf '%s\n' 'Smoke test script is not present in this stack slice. Run the AOTEL-009 smoke-test branch or add scripts/smoke-test-otel.py.'; \
+	@if [ -z "$${AOTEL_SMOKE_TOKEN:-}" ] && [ -z "$(TOKEN)" ]; then \
+		printf '%s\n' 'Missing required token source: set AOTEL_SMOKE_TOKEN or pass TOKEN for local-only testing'; \
+		printf '%s\n' 'Usage: AOTEL_SMOKE_TOKEN=<issued-token> make smoke'; \
 		exit 2; \
-	}
-	python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)" --token "$(TOKEN)"
+	fi
+	@if [ -n "$${AOTEL_SMOKE_TOKEN:-}" ]; then \
+		python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
+	else \
+		AOTEL_SMOKE_TOKEN="$(TOKEN)" python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
+	fi
 
 install-codex:
 	$(call require_var,ENDPOINT,make install-codex ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)

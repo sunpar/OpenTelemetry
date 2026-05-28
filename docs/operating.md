@@ -80,8 +80,40 @@ curl -i http://localhost:8088/v1/logs \
 Valid token path:
 
 ```sh
-make smoke TOKEN=<issued-token>
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 ```
+
+The smoke target runs:
+
+```sh
+AOTEL_SMOKE_TOKEN=<issued-token> \
+  python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088
+```
+
+It checks:
+
+- invalid bearer tokens return `401` on `/v1/logs`, `/v1/traces`, and
+  `/v1/metrics`
+- a valid token can send JSON OTLP test logs, traces, and metrics through
+  Nginx to the Collector
+- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are included on the
+  log smoke request so SigNoz can be checked for trusted resource attributes
+- the gateway endpoint host and loopback do not accept direct OTLP connections
+  on `4317` or `4318`
+- Docker is not publishing host ports for direct OTLP ingestion on `4317` or
+  `4318`
+
+To send only one test log:
+
+```sh
+python3 scripts/send-test-log.py \
+  --endpoint http://localhost:8088 \
+  --token <issued-token>
+```
+
+For real issued tokens, prefer `AOTEL_SMOKE_TOKEN`, `--token-file`, or
+`--token-stdin` with `scripts/smoke-test-otel.py` so the token is not exposed in
+process listings or shell history.
 
 SigNoz must show a test log with:
 

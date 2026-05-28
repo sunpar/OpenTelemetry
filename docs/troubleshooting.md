@@ -19,6 +19,7 @@ Checks:
 ```sh
 curl -i http://localhost:8088/v1/logs
 curl -i http://localhost:8088/v1/logs -H 'Authorization: Bearer invalid'
+python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088 --token <issued-token>
 ```
 
 Inspect auth-api logs:
@@ -72,7 +73,13 @@ Checks:
 - Review `infra/nginx/nginx.conf`.
 - Review `infra/otel/collector.local.yaml`.
 - Confirm Collector receives traffic only from ingress.
-- Send a test log through Nginx, not directly to Collector.
+- Send a test log through Nginx, not directly to Collector:
+
+  ```sh
+  python3 scripts/send-test-log.py \
+    --endpoint http://localhost:8088 \
+    --token <issued-token>
+  ```
 
 ## Request Reaches Collector But Not SigNoz
 
@@ -92,6 +99,48 @@ docker compose -f compose/docker-compose.gateway.yml ps
 ```
 
 Inspect Collector health metrics and exporter logs.
+
+## Smoke Test Reports Direct Ingestion Port Is Reachable
+
+The smoke script expects these host ports to be closed:
+
+```text
+127.0.0.1:4318
+127.0.0.1:4317
+<gateway-endpoint-host>:4318
+<gateway-endpoint-host>:4317
+```
+
+It also inspects Docker's published port table and fails when any running
+container publishes `4317` or `4318` to the host. If any direct OTLP port is
+reachable or published, a client may be able to bypass auth-api and Nginx.
+Checks:
+
+```sh
+docker compose -f compose/docker-compose.gateway.yml ps
+docker ps --format '{{.Names}} {{.Ports}}' | grep -E '4317|4318'
+```
+
+Fixes:
+
+1. Remove host-published `4317` or `4318` mappings from local Compose
+   overrides.
+2. Keep Collector OTLP/HTTP exposed only on the Docker network.
+3. Keep SigNoz ingestion reachable only from the gateway Collector network.
+4. Re-run `AOTEL_SMOKE_TOKEN=<issued-token> make smoke`.
+
+## Smoke Test Passes But Spoofed Headers Need Confirmation
+
+The smoke script sends spoofed `X-Telemetry-*` and `X-Forwarded-For` headers on
+the valid log request, but it does not mark header overwrite as verified unless
+the final enriched resource attributes are inspected in SigNoz or another
+authoritative backend. After `make smoke`, check the smoke log in SigNoz and
+confirm:
+
+- `telemetry.user.email` matches the issued token owner, not the spoofed header
+- `telemetry.team.id` matches the issued token team, not the spoofed header
+- `telemetry.token.id` matches the issued token id, not the spoofed header
+- `telemetry.source.ip` does not equal the spoofed `X-Forwarded-For` value
 
 ## SigNoz Shows Data Without User Or Team
 
