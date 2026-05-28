@@ -1,0 +1,84 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 2048
+    spike_limit_mib: 512
+  resource/tenant_from_headers:
+    attributes:
+      - key: telemetry.user.email
+        from_context: metadata.x-telemetry-user
+        action: upsert
+      - key: telemetry.user.id
+        from_context: metadata.x-telemetry-user-id
+        action: upsert
+      - key: telemetry.team.id
+        from_context: metadata.x-telemetry-team
+        action: upsert
+      - key: telemetry.token.id
+        from_context: metadata.x-telemetry-token-id
+        action: upsert
+      - key: telemetry.source.ip
+        from_context: metadata.x-telemetry-source-ip
+        action: upsert
+      - key: agent.capture.profile
+        from_context: metadata.x-telemetry-capture-profile
+        action: upsert
+      - key: service.namespace
+        value: agent-otel
+        action: upsert
+  transform/agent_normalize:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
+    trace_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+exporters:
+  otlp/signoz:
+    endpoint: "${env:SIGNOZ_OTLP_GRPC_ENDPOINT}"
+    tls:
+      insecure: false
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/tenant_from_headers, transform/agent_normalize, batch]
+      exporters: [otlp/signoz]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/tenant_from_headers, transform/agent_normalize, batch]
+      exporters: [otlp/signoz]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/tenant_from_headers, transform/agent_normalize, batch]
+      exporters: [otlp/signoz]

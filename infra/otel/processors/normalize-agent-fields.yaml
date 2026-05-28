@@ -1,0 +1,18 @@
+processors:
+  transform/agent_normalize:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
+    trace_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["agent.tool"], "codex") where attributes["service.name"] == "codex"
+          - set(attributes["agent.tool"], "claude_code") where attributes["service.name"] == "claude-code"
