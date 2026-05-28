@@ -5,24 +5,22 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from importlib import resources
 from pathlib import Path
 
 
-def _add_auth_api_src_to_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[3]
-    auth_src = repo_root / "services/auth-api/src"
-    if auth_src.exists():
-        sys.path.insert(0, str(auth_src))
-    return repo_root
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
-REPO_ROOT = _add_auth_api_src_to_path()
+REPO_ROOT = _repo_root()
 
-from db import connect, initialize_database, upsert_user  # noqa: E402
-from tokens import issue_token, revoke_token  # noqa: E402
+from otelctl_auth.db import connect, initialize_database, upsert_user  # noqa: E402
+from otelctl_auth.tokens import issue_token, revoke_token  # noqa: E402
 
 
 DEFAULT_DB_PATH = "auth-api.sqlite3"
+MAX_CAPTURE_MAX_DURATION = timedelta(days=7)
 
 
 def _open_db(path: str):
@@ -45,9 +43,35 @@ def _parse_duration(value: str) -> datetime:
     return datetime.now(timezone.utc) + delta
 
 
-def _render_template(path: Path, *, endpoint: str, token: str, log_user_prompt: str = "false") -> str:
+def _parse_iso(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _default_db_path() -> str:
+    return os.environ.get("AUTH_API_DB_PATH") or os.environ.get("AUTH_DB_PATH") or DEFAULT_DB_PATH
+
+
+def _read_template(path: Path, bundled_name: str) -> str:
+    if path.exists():
+        return path.read_text()
+    return resources.files("otelctl_templates").joinpath(bundled_name).read_text()
+
+
+def _render_template(
+    path: Path,
+    *,
+    bundled_name: str,
+    endpoint: str,
+    token: str,
+    log_user_prompt: str = "false",
+) -> str:
     return (
-        path.read_text()
+        _read_template(path, bundled_name)
         .replace("{{ENDPOINT}}", endpoint.rstrip("/"))
         .replace("{{TOKEN}}", token)
         .replace("{{LOG_USER_PROMPT}}", log_user_prompt)
@@ -60,6 +84,19 @@ def _token_issue(args: argparse.Namespace) -> int:
     if user is None:
         print(f"unknown user: {args.email}", file=sys.stderr)
         return 1
+    if user["status"] != "active":
+        print(f"user is disabled: {args.email}", file=sys.stderr)
+        return 1
+    if args.capture_profile == "max":
+        if not args.name:
+            print("max-capture tokens require --name", file=sys.stderr)
+            return 1
+        if args.expires is None:
+            print("max-capture tokens require --expires", file=sys.stderr)
+            return 1
+        if args.expires > datetime.now(timezone.utc) + MAX_CAPTURE_MAX_DURATION:
+            print("max-capture tokens must expire within 7d", file=sys.stderr)
+            return 1
 
     issued = issue_token(
         conn,
@@ -71,12 +108,14 @@ def _token_issue(args: argparse.Namespace) -> int:
     endpoint = args.endpoint.rstrip("/")
     codex = _render_template(
         REPO_ROOT / "templates/codex.config.toml",
+        bundled_name="codex.config.toml",
         endpoint=endpoint,
         token="<TOKEN>",
         log_user_prompt="false",
     )
     claude = _render_template(
         REPO_ROOT / "templates/claude.env",
+        bundled_name="claude.env",
         endpoint=endpoint,
         token="<TOKEN>",
     )
@@ -100,6 +139,10 @@ def _token_issue(args: argparse.Namespace) -> int:
 
 def _token_list(args: argparse.Namespace) -> int:
     conn = _open_db(args.db_path)
+    user = conn.execute("SELECT id FROM users WHERE email = ?", (args.email,)).fetchone()
+    if user is None:
+        print(f"unknown user: {args.email}", file=sys.stderr)
+        return 1
     rows = conn.execute(
         """
         SELECT t.id, t.name, t.token_prefix, t.token_last4, t.scopes,
@@ -115,8 +158,15 @@ def _token_list(args: argparse.Namespace) -> int:
         print(f"no tokens for {args.email}")
         return 0
 
+    now = datetime.now(timezone.utc)
     for row in rows:
-        status = "revoked" if row["revoked_at"] else "active"
+        expires_at = _parse_iso(row["expires_at"])
+        if row["revoked_at"]:
+            status = "revoked"
+        elif expires_at and expires_at <= now:
+            status = "expired"
+        else:
+            status = "active"
         print(
             f"{row['id']} {status} {row['capture_profile']} "
             f"{row['token_prefix']}...{row['token_last4']} "
@@ -138,6 +188,10 @@ def _token_revoke(args: argparse.Namespace) -> int:
 
 def _users_add(args: argparse.Namespace) -> int:
     conn = _open_db(args.db_path)
+    existing = conn.execute("SELECT * FROM users WHERE email = ?", (args.email,)).fetchone()
+    if existing and existing["status"] != "active":
+        print(f"user is disabled: {args.email}; reactivate explicitly before issuing new tokens", file=sys.stderr)
+        return 1
     user = upsert_user(
         conn,
         email=args.email,
@@ -166,7 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="otelctl")
     parser.add_argument(
         "--db-path",
-        default=os.environ.get("AUTH_API_DB_PATH", DEFAULT_DB_PATH),
+        default=_default_db_path(),
         help="SQLite auth database path",
     )
 

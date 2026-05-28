@@ -14,7 +14,12 @@ otelctl = "otelctl:entrypoint"
 
 [tool.setuptools]
 py-modules = ["otelctl"]
+packages = ["otelctl_auth", "otelctl_templates"]
 package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+otelctl_auth = ["migrations/*.sql"]
+otelctl_templates = ["*.toml", "*.env"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
