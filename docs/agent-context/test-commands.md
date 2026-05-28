@@ -4,7 +4,7 @@ Last updated: 2026-05-28
 
 ## Current Test Status
 
-The repository now has runnable Python packages, Compose contracts, installer
+The repository has runnable Python packages, Compose contracts, installer
 scripts, dashboard JSON, and GitHub Actions CI.
 
 Latest local baseline for the merged implementation:
@@ -77,6 +77,41 @@ git diff --check
 - SigNoz dashboard JSON
 - shell syntax for `scripts/*.sh`
 
+## Targeted Test Commands
+
+Auth domain and `otelctl` behavior:
+
+```sh
+.venv/bin/python -m pytest services/auth-api/tests cli/otelctl/tests -q
+```
+
+Gateway, Collector, and SigNoz config:
+
+```sh
+.venv/bin/python -m pytest \
+  tests/test_aotel005_nginx.py \
+  tests/test_aotel006_collector.py \
+  tests/test_aotel007_gateway_compose.py \
+  tests/test_aotel008_signoz.py \
+  -q
+```
+
+Installers and smoke scripts:
+
+```sh
+.venv/bin/python -m pytest \
+  tests/test_aotel009_smoke_scripts.py \
+  tests/test_aotel010_codex_installer.py \
+  tests/test_aotel011_claude_installer.py \
+  -q
+```
+
+CI contract checks:
+
+```sh
+.venv/bin/python -m pytest tests/test_ci_contract.py -q
+```
+
 ## Compose Verification
 
 Validate the local gateway stack:
@@ -99,6 +134,24 @@ docker compose \
   -f .vendor/signoz/deploy/docker/docker-compose.yaml \
   -f compose/docker-compose.signoz.override.yml \
   config
+```
+
+## Useful Manual Checks
+
+Make help and missing-variable guards:
+
+```sh
+make help
+make user
+```
+
+Shell parse checks:
+
+```sh
+bash -n scripts/install-codex-otel.sh
+bash -n scripts/install-claude-otel.sh
+bash -n templates/claude.env
+bash -n templates/claude.max-capture.env
 ```
 
 ## Live Milestone Verification

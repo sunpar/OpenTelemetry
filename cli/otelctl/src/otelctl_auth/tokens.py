@@ -8,6 +8,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from typing import Iterable
+from urllib.parse import urlsplit
 
 from .db import record_ingest_audit, utc_now_iso
 from .models import IssuedToken, TokenRecord, User, ValidationResult
@@ -22,6 +23,8 @@ PATH_SCOPES = {
     "/v1/traces": "traces",
     "/v1/metrics": "metrics",
 }
+VALID_SCOPES = frozenset(PATH_SCOPES.values())
+TOKEN_ID_RE = re.compile(r"^aotel_live_(tok_[0-9A-HJKMNPQRSTVWXYZ]{26})_")
 
 
 class TokenFormatError(ValueError):
@@ -53,6 +56,13 @@ def parse_token_id(token: str) -> str:
     return match.group(1)
 
 
+def _parse_visible_token_id(token: str) -> str | None:
+    match = TOKEN_ID_RE.match(token)
+    if not match:
+        return None
+    return match.group(1)
+
+
 def hash_token(token: str) -> str:
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
@@ -77,6 +87,24 @@ def _parse_iso(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _normalize_path(path: str) -> str:
+    return urlsplit(path).path
+
+
+def _normalize_scopes(scopes: Iterable[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for scope in scopes:
+        value = scope.strip()
+        if "," in value:
+            raise ValueError("scope must not contain commas")
+        if value not in VALID_SCOPES:
+            raise ValueError(f"unsupported scope: {scope}")
+        normalized.append(value)
+    if not normalized:
+        raise ValueError("at least one scope is required")
+    return tuple(normalized)
 
 
 def _token_from_row(row: sqlite3.Row) -> TokenRecord:
@@ -148,9 +176,7 @@ def issue_token(
     if capture_profile not in {"normal", "max"}:
         raise ValueError("capture_profile must be normal or max")
 
-    scope_text = ",".join(scopes)
-    if not scope_text:
-        raise ValueError("at least one scope is required")
+    scope_text = ",".join(_normalize_scopes(scopes))
 
     user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -254,9 +280,23 @@ def validate_token(
     remote_addr: str | None = None,
     now: datetime | None = None,
 ) -> ValidationResult:
+    normalized_path = _normalize_path(path)
     try:
         token_id = parse_token_id(token)
     except TokenFormatError:
+        visible_token_id = _parse_visible_token_id(token)
+        if visible_token_id:
+            row = _lookup_token(conn, visible_token_id)
+            return _reject(
+                conn,
+                reason="malformed",
+                status_code=401,
+                row=row,
+                token_id=visible_token_id,
+                path=normalized_path,
+                content_length=content_length,
+                remote_addr=remote_addr,
+            )
         return ValidationResult(ok=False, status_code=401, reason="malformed")
 
     row = _lookup_token(conn, token_id)
@@ -267,7 +307,7 @@ def validate_token(
             status_code=401,
             row=None,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
@@ -279,7 +319,7 @@ def validate_token(
             status_code=401,
             row=row,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
@@ -291,7 +331,7 @@ def validate_token(
             status_code=403,
             row=row,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
@@ -305,7 +345,7 @@ def validate_token(
             status_code=403,
             row=row,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
@@ -317,12 +357,12 @@ def validate_token(
             status_code=403,
             row=row,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
 
-    requested_scope = PATH_SCOPES.get(path)
+    requested_scope = PATH_SCOPES.get(normalized_path)
     allowed_scopes = {scope.strip() for scope in row["scopes"].split(",") if scope.strip()}
     if requested_scope not in allowed_scopes:
         return _reject(
@@ -331,7 +371,7 @@ def validate_token(
             status_code=403,
             row=row,
             token_id=token_id,
-            path=path,
+            path=normalized_path,
             content_length=content_length,
             remote_addr=remote_addr,
         )
@@ -343,7 +383,7 @@ def validate_token(
         conn,
         row=row,
         token_id=token_id,
-        path=path,
+        path=normalized_path,
         content_length=content_length,
         status_code=204,
         remote_addr=remote_addr,

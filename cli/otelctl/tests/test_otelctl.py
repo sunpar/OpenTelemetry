@@ -3,11 +3,13 @@ from pathlib import Path
 import re
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from otelctl_auth.db import connect
+from otelctl_auth.db import connect, initialize_database, upsert_user
 from otelctl import main
-from otelctl_auth.tokens import validate_token
+from otelctl_auth.tokens import issue_token, validate_token
 
 
 TOKEN_RE = re.compile(r"aotel_live_tok_[0-9A-HJKMNPQRSTVWXYZ]{26}_[A-Za-z0-9_-]+")
@@ -23,6 +25,12 @@ def _issued_token(output: str) -> str:
     matches = TOKEN_RE.findall(output)
     assert len(matches) == 1
     return matches[0]
+
+
+def _conn(tmp_path):
+    conn = connect(tmp_path / "auth.sqlite3")
+    initialize_database(conn)
+    return conn
 
 
 def test_users_add_and_tokens_issue_create_valid_token(tmp_path, capsys):
@@ -165,6 +173,49 @@ def test_auth_api_db_path_precedes_alias(tmp_path, capsys, monkeypatch):
     assert captured.err == ""
     assert api_path.exists()
     assert not alias_path.exists()
+
+
+def test_token_core_normalizes_original_uri_for_scope_and_audit(tmp_path):
+    conn = _conn(tmp_path)
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+    issued = issue_token(conn, user_id=user.id, scopes=("logs",))
+
+    result = validate_token(conn, issued.token, path="/v1/logs?foo=bar")
+
+    assert result.ok is True
+    audit = conn.execute("SELECT path, status_code FROM ingest_audit").fetchone()
+    assert audit["path"] == "/v1/logs"
+    assert audit["status_code"] == 204
+
+
+def test_token_core_audits_malformed_secret_when_token_id_is_visible(tmp_path):
+    conn = _conn(tmp_path)
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+    issued = issue_token(conn, user_id=user.id)
+    bad_token = f"aotel_live_{issued.record.id}_short"
+
+    result = validate_token(conn, bad_token, path="/v1/logs?foo=bar")
+
+    assert result.ok is False
+    assert result.status_code == 401
+    assert result.reason == "malformed"
+    audit = conn.execute("SELECT token_id, user_id, team_id, path, status_code FROM ingest_audit").fetchone()
+    assert audit["token_id"] == issued.record.id
+    assert audit["user_id"] == user.id
+    assert audit["team_id"] == "quant-dev"
+    assert audit["path"] == "/v1/logs"
+    assert audit["status_code"] == 401
+
+
+def test_token_core_rejects_invalid_scope_values(tmp_path):
+    conn = _conn(tmp_path)
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+
+    with pytest.raises(ValueError, match="scope must not contain commas"):
+        issue_token(conn, user_id=user.id, scopes=("logs,traces",))
+
+    with pytest.raises(ValueError, match="unsupported scope"):
+        issue_token(conn, user_id=user.id, scopes=("logs", "profiles"))
 
 
 def test_max_capture_requires_name_and_bounded_expiry(tmp_path, capsys):

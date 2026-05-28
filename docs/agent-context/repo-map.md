@@ -4,7 +4,7 @@ Last updated: 2026-05-28
 
 ## Repository Status
 
-This repository now contains the local MVP implementation for an authenticated
+This repository contains the local MVP implementation for an authenticated
 OpenTelemetry gateway for agent telemetry. The implementation includes runnable
 auth-api and `otelctl` Python packages, Compose contracts, ingress and Collector
 configs, installer scripts, smoke/security scripts, SigNoz dashboard JSON, and
@@ -14,11 +14,15 @@ CI.
 
 Current package, build, and validation files:
 
-- `requirements-dev.txt`
-- `Makefile`
-- `pyproject.toml`
-- `docker-compose*.yml`
-- `.github/workflows/*`
+- `requirements-dev.txt`: editable local package installs plus test/lint tools.
+- `Makefile`: local operator targets for SigNoz, gateway, user/token commands,
+  smoke checks, and installers.
+- `services/auth-api/pyproject.toml`: FastAPI auth service package.
+- `cli/otelctl/pyproject.toml`: operator CLI package.
+- `compose/docker-compose.gateway.yml`: auth-api, Nginx, and Collector gateway.
+- `compose/docker-compose.signoz.yml`: SigNoz wrapper metadata.
+- `compose/docker-compose.signoz.override.yml`: safe local SigNoz bindings.
+- `.github/workflows/ci.yml`: Python, static, and Compose validation.
 
 ## Current File Tree
 
@@ -68,33 +72,38 @@ docs/
 
 ## Source Boundaries
 
-The implementation shape is documented in `README.md` and
-`docs/milestones.md`:
-
-- `compose/`: Docker Compose entry points for gateway, SigNoz, and optional
-  warehouse profile.
-- `infra/nginx/`: authenticated OTLP ingress config.
-- `infra/otel/`: OpenTelemetry Collector gateway configs and processors.
-- `infra/signoz/`: SigNoz bootstrap docs and dashboard JSON.
-- `services/auth-api/`: token/control-plane service.
-- `cli/otelctl/`: local control-plane CLI.
-- `scripts/`: installers, smoke tests, test telemetry senders, and config backup
-  helpers.
-- `templates/`: generated Codex and Claude Code config templates.
+- `services/auth-api/`: token verification service, SQLite migrations, and
+  service tests.
+- `cli/otelctl/`: operator CLI, packaged templates, auth-domain helpers, and
+  CLI tests.
+- `infra/nginx/`: Nginx `auth_request` ingress for `/v1/logs`, `/v1/traces`,
+  and `/v1/metrics`.
+- `infra/otel/`: Collector local/prod configs and agent normalization fragment.
+- `infra/signoz/`: SigNoz docs and dashboard JSON.
+- `scripts/`: Codex/Claude installers, smoke runner, backup helper, and OTLP
+  JSON sender.
+- `templates/`: source templates used by installers and CLI snippet output.
+- `tests/`: cross-component scaffold, Compose, installer, script, Collector,
+  Nginx, SigNoz, dashboard, and CI contract tests.
 
 ## Entry Points
 
-- `make signoz-up`: start SigNoz for local trial.
+- `make signoz-up`: clone/start the SigNoz local stack.
+- `make signoz-down`: stop the SigNoz local stack.
 - `make up`: start auth-api, Nginx ingress, and Collector gateway.
-- `make user EMAIL=... TEAM=...`: create or update a user.
-- `make token EMAIL=...`: issue a per-user opaque token and print client
-  snippets.
-- `make smoke TOKEN=...`: send authenticated test telemetry through the gateway.
+- `make down`: stop the gateway stack.
+- `make logs`: follow gateway stack logs.
+- `make user EMAIL=... TEAM=... [NAME=...]`: create/update a telemetry user.
+- `make token EMAIL=... [TOKEN_NAME=...] [EXPIRES=90d]`: issue a token and
+  print onboarding snippets.
+- `make smoke TOKEN=...`: run local gateway smoke/security checks.
+- `make install-codex ENDPOINT=... TOKEN=...`: install Codex telemetry config.
+- `make install-claude ENDPOINT=... TOKEN=...`: write Claude Code telemetry env.
 - `otelctl users add`
+- `otelctl users disable`
 - `otelctl tokens issue`
 - `otelctl tokens list`
 - `otelctl tokens revoke`
-- `otelctl users disable`
 - `scripts/install-codex-otel.sh`
 - `scripts/install-claude-otel.sh`
 - `scripts/smoke-test-otel.py`
@@ -103,15 +112,18 @@ The implementation shape is documented in `README.md` and
 
 ## Config Surfaces
 
-- `infra/nginx/nginx.conf`: `auth_request` ingress for `/v1/logs`,
-  `/v1/traces`, and `/v1/metrics`.
-- `infra/otel/collector.local.yaml`: OTLP/HTTP receiver with metadata
-  enrichment, batching, retry, and SigNoz export.
-- `infra/otel/collector.prod.yaml`: production Collector gateway profile.
-- `templates/codex.config.toml`: content-minimal Codex OTel config.
-- `templates/claude.env`: content-minimal Claude Code OTel env.
-- `templates/claude.max-capture.env`: explicit max-capture env overlay.
 - `.env.example`: non-secret local defaults.
+- `services/auth-api/src/settings.py`: auth-api runtime settings.
+- `services/auth-api/migrations/001_initial.sql`: user, token, and ingest audit
+  schema.
+- `infra/nginx/nginx.conf`: auth ingress and trusted telemetry headers.
+- `infra/otel/collector.local.yaml`: local Collector gateway profile.
+- `infra/otel/collector.prod.yaml`: production Collector gateway profile.
+- `infra/otel/processors/normalize-agent-fields.yaml`: reusable transform
+  processor fragment.
+- `templates/codex.config.toml`: managed Codex telemetry block.
+- `templates/claude.env`: content-minimal Claude Code telemetry env.
+- `templates/claude.max-capture.env`: explicit max-capture overlay.
 
 ## Architecture Boundaries
 
@@ -158,7 +170,7 @@ Cardinality-sensitive fields:
 ## Risk Hotspots
 
 - Token validation: opaque-token parsing, hash comparison, revocation, expiry,
-  disabled users, scopes, and audit rows.
+  disabled users, scopes, original URI normalization, and audit rows.
 - Header trust: spoofed `X-Telemetry-*` headers and source-IP spoofing.
 - Direct ingestion exposure: Collector and SigNoz OTLP ports must not be
   externally published.
@@ -181,3 +193,5 @@ Cardinality-sensitive fields:
 - SQLite is the v1 persistence layer; Postgres migration remains future work.
 - Codex telemetry config must be re-verified against the installed Codex CLI
   before shipping the installer.
+- The duplicated auth-domain helpers in `services/auth-api` and `cli/otelctl`
+  may need a first-class shared package once the local trial stabilizes.
