@@ -21,6 +21,7 @@ SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
 TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
+OTELCTL_CONTAINER_PYTHONPATH := /workspace/packages/auth-core/src:/workspace/cli/otelctl/src
 
 export AUTH_API_DB_PATH GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
@@ -102,7 +103,7 @@ up:
 		printf '%s\n' 'SigNoz network is missing. Run make signoz-up first.'; \
 		exit 2; \
 	}
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build
 
 down:
 	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml down
@@ -113,11 +114,11 @@ logs:
 user:
 	$(call require_var,EMAIL,make user EMAIL=alice@example.com TEAM=quant-dev)
 	$(call require_var,TEAM,make user EMAIL=alice@example.com TEAM=quant-dev)
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
 
 token:
 	$(call require_var,EMAIL,make token EMAIL=alice@example.com)
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
 	@if [ -z "$${AOTEL_SMOKE_TOKEN:-}" ] && [ -z "$(TOKEN)" ]; then \

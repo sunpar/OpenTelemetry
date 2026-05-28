@@ -42,7 +42,7 @@ def test_nginx_auth_subrequest_preserves_original_payload():
     assert 'proxy_set_header Content-Length "";' in auth_block
     assert "proxy_set_header X-Original-Content-Length $http_content_length;" in auth_block
     assert "proxy_set_header Authorization $http_authorization;" in auth_block
-    assert "proxy_set_header X-Original-URI $uri;" in auth_block
+    assert "proxy_set_header X-Original-URI $request_uri;" in auth_block
     assert "proxy_set_header X-Original-Method $request_method;" in auth_block
     assert "proxy_set_header X-Original-Content-Length $content_length;" in auth_block
     assert "proxy_set_header X-Telemetry-Source-Ip $remote_addr;" in auth_block

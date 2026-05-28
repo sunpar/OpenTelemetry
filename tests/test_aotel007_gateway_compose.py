@@ -77,11 +77,13 @@ def test_gateway_collector_joins_private_signoz_network():
 def test_makefile_wires_gateway_targets_and_otelctl_context():
     makefile = (ROOT / "Makefile").read_text()
 
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d" in makefile
+    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build" in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml down" in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml logs -f" in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api" in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config" in makefile
+    assert "OTELCTL_CONTAINER_PYTHONPATH := /workspace/packages/auth-core/src:/workspace/cli/otelctl/src" in makefile
+    assert "env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py" in makefile
     assert "python /workspace/cli/otelctl/src/otelctl.py" in makefile
     assert "scripts/smoke-test-otel.py" in makefile
     assert "AOTEL_SMOKE_TOKEN" in makefile
