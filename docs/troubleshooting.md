@@ -62,6 +62,7 @@ Likely causes:
 
 - Nginx did not copy auth response headers.
 - Nginx did not overwrite spoofed client headers.
+- Ingress is trusting client-supplied source IP headers.
 - Collector OTLP/HTTP receiver is missing `include_metadata: true`.
 - Collector resource processor keys do not match header metadata names.
 - The request bypassed ingress and posted directly to the Collector or SigNoz.
@@ -104,7 +105,9 @@ Actions:
 3. Verify Nginx overwrites `X-Telemetry-*` headers.
 4. Verify Collector `resource/tenant_from_headers` processor is in every signal
    pipeline.
-5. Re-run the smoke test with a valid token.
+5. Verify `telemetry.source.ip` comes from ingress-controlled source IP logic,
+   not from arbitrary client `X-Forwarded-For`.
+6. Re-run the smoke test with a valid token.
 
 ## Codex Does Not Emit Telemetry
 

@@ -12,9 +12,9 @@ Normalize only the fields needed for cross-tool dashboards.
 | `telemetry.user.id` | Internal user id from auth-api |
 | `telemetry.user.email` | User email from auth-api |
 | `telemetry.token.id` | Public token id used for ingestion |
-| `telemetry.source.ip` | Forwarded source IP from ingress |
+| `telemetry.source.ip` | Source IP derived by ingress from a trusted socket or proxy chain |
 | `agent.tool` | `codex`, `claude_code`, `cursor`, or `custom` |
-| `agent.capture.profile` | `normal` or `max` |
+| `agent.capture.profile` | `normal` or `max`, copied from trusted token metadata |
 | `agent.client.version` | Client tool version when available |
 | `agent.session.id` | Tool session id when available |
 | `agent.conversation.id` | Conversation id when available |
@@ -67,11 +67,15 @@ dimensions.
 
 ## Capture Profiles
 
+The capture profile is token metadata owned by `auth-api`. The auth response
+includes `X-Telemetry-Capture-Profile`, Nginx forwards it as a trusted header,
+and the Collector copies it into `agent.capture.profile`.
+
 ### normal
 
-Default profile for the team trial. It captures logs, traces, metrics, prompts
-when explicitly enabled, tool decisions, tool results, model/API events, and
-operational errors.
+Default profile for the team trial. It captures logs, traces, metrics, tool
+decisions, tool results, model/API events, and operational errors. Prompt and
+tool content are disabled by default.
 
 ### max
 

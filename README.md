@@ -59,7 +59,7 @@ agent-otel-trial/
   .env.example
   compose/
     docker-compose.gateway.yml
-    docker-compose.signoz.md
+    docker-compose.signoz.yml
     docker-compose.warehouse.yml
   infra/
     nginx/

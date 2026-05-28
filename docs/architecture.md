@@ -83,6 +83,8 @@ ports. All external ingestion goes through the authenticated gateway.
 - External clients can provide `Authorization` only.
 - External clients cannot be trusted for `X-Telemetry-*` identity headers.
 - Ingress must overwrite identity headers before proxying to the Collector.
+- Ingress must derive source IP from the socket or a configured trusted proxy
+  chain. Do not trust client-supplied `X-Forwarded-For` directly.
 - Collector enrichment must use trusted metadata from ingress, not payload
   fields supplied by clients.
 - SigNoz ingestion ports should stay internal.
@@ -126,7 +128,10 @@ processors:
         from_context: metadata.x-telemetry-token-id
         action: upsert
       - key: telemetry.source.ip
-        from_context: metadata.x-forwarded-for
+        from_context: metadata.x-telemetry-source-ip
+        action: upsert
+      - key: agent.capture.profile
+        from_context: metadata.x-telemetry-capture-profile
         action: upsert
       - key: service.namespace
         value: agent-otel

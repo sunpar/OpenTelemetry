@@ -23,10 +23,18 @@ Acceptance criteria:
 4. `otelctl tokens issue` works.
 5. Invalid token returns 401.
 6. Valid token reaches Collector.
-7. SigNoz shows a test log with:
+7. All three OTLP paths require auth:
+   - `/v1/logs`
+   - `/v1/traces`
+   - `/v1/metrics`
+8. Direct Collector and SigNoz OTLP ingestion ports are not published to the
+   host.
+9. Spoofed client `X-Telemetry-*` headers are overwritten by ingress.
+10. SigNoz shows a test log with:
    - `telemetry.user.email`
    - `telemetry.team.id`
    - `telemetry.token.id`
+   - `agent.capture.profile`
 
 ## Milestone 2: Codex Onboarding
 

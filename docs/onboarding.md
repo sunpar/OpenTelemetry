@@ -3,6 +3,9 @@
 The onboarding goal is to get a teammate sending useful telemetry in under five
 minutes after the gateway is running.
 
+Status: this is the planned onboarding interface. The `make` targets and
+installers become runnable in Milestones 1-3.
+
 ## Operator Flow
 
 ```sh
@@ -39,33 +42,49 @@ Target generated block:
 ```toml
 [otel]
 environment = "team-trial"
-log_user_prompt = true
-exporter = { otlp-http = {
-  endpoint = "https://otel.yourcompany.com/v1/logs",
-  protocol = "binary",
-  headers = { "Authorization" = "Bearer <TOKEN>" }
-}}
-metrics_exporter = { otlp-http = {
-  endpoint = "https://otel.yourcompany.com/v1/metrics",
-  protocol = "binary",
-  headers = { "Authorization" = "Bearer <TOKEN>" }
-}}
-trace_exporter = { otlp-http = {
-  endpoint = "https://otel.yourcompany.com/v1/traces",
-  protocol = "binary",
-  headers = { "Authorization" = "Bearer <TOKEN>" }
-}}
+log_user_prompt = false
+
+[otel.exporter.otlp-http]
+endpoint = "https://otel.yourcompany.com/v1/logs"
+protocol = "binary"
+
+[otel.exporter.otlp-http.headers]
+Authorization = "Bearer <TOKEN>"
+
+[otel.metrics_exporter.otlp-http]
+endpoint = "https://otel.yourcompany.com/v1/metrics"
+protocol = "binary"
+
+[otel.metrics_exporter.otlp-http.headers]
+Authorization = "Bearer <TOKEN>"
+
+[otel.trace_exporter.otlp-http]
+endpoint = "https://otel.yourcompany.com/v1/traces"
+protocol = "binary"
+
+[otel.trace_exporter.otlp-http.headers]
+Authorization = "Bearer <TOKEN>"
 ```
 
 Implementation note: before coding the installer, verify this block against the
-current installed Codex CLI and official Codex configuration docs. The project
-requirement is to generate this shape, but Codex config keys may move between
-CLI releases.
+current installed Codex CLI and official Codex configuration docs, then validate
+the rendered TOML with a parser. The project requirement is to generate this
+shape, but Codex config keys may move between CLI releases.
+
+For content capture investigations, generate an explicit overlay that changes
+only:
+
+```toml
+[otel]
+log_user_prompt = true
+```
+
+Do not enable prompt capture in the normal profile.
 
 ## Claude Code Default Env
 
-Default Claude Code onboarding should enable useful telemetry without raw API
-body capture:
+Default Claude Code onboarding should enable useful telemetry without prompt,
+tool-content, or raw API body capture:
 
 ```sh
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
@@ -76,9 +95,6 @@ export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.yourcompany.com
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <TOKEN>"
-export OTEL_LOG_USER_PROMPTS=1
-export OTEL_LOG_TOOL_DETAILS=1
-export OTEL_LOG_TOOL_CONTENT=1
 ```
 
 This should be generated as `templates/claude.env`.
@@ -90,10 +106,14 @@ with a clear warning that it can include full request and response bodies,
 conversation history, and sensitive data.
 
 ```sh
+export OTEL_LOG_USER_PROMPTS=1
+export OTEL_LOG_TOOL_DETAILS=1
+export OTEL_LOG_TOOL_CONTENT=1
 export OTEL_LOG_RAW_API_BODIES=1
 ```
 
-Use max capture for short forensic windows, not normal team onboarding.
+Use max capture for short forensic windows, not normal team onboarding. Pair it
+with a short-lived token whose `capture_profile` is `max`.
 
 ## Installer Requirements
 

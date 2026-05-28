@@ -33,6 +33,7 @@ CREATE TABLE tokens (
   token_prefix TEXT NOT NULL,
   token_last4 TEXT NOT NULL,
   scopes TEXT NOT NULL DEFAULT 'logs,traces,metrics',
+  capture_profile TEXT NOT NULL DEFAULT 'normal',
   expires_at TEXT,
   revoked_at TEXT,
   created_at TEXT NOT NULL,
@@ -76,10 +77,13 @@ X-Telemetry-User: alice@example.com
 X-Telemetry-Team: quant-dev
 X-Telemetry-User-Id: usr_...
 X-Telemetry-Token-Id: tok_...
+X-Telemetry-Capture-Profile: normal
 ```
 
 Nginx must copy these response headers into trusted proxy headers for the
 Collector. Client-supplied values for these same headers must be overwritten.
+Ingress should also set `X-Telemetry-Source-Ip` from the socket or trusted proxy
+chain, not from an arbitrary client-supplied header.
 
 ## CLI Contract
 
@@ -99,6 +103,9 @@ The token issuance command should print:
 - a Codex config snippet
 - a Claude Code env snippet
 - a reminder that raw Claude API body capture is opt-in only
+
+Tokens default to `capture_profile=normal`. Max-capture tokens should be
+explicitly named, short-lived, and issued only for a bounded investigation.
 
 ## Status Codes
 
