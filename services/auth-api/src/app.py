@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, Request, Response
@@ -26,11 +27,22 @@ def _original_path(value: str | None) -> str:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        conn = connect(app_settings.auth_db_path)
+        try:
+            initialize_database(conn)
+        finally:
+            conn.close()
+        yield
+
     app = FastAPI(
         title="Agent OpenTelemetry auth-api",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
 
     @app.get("/healthz")
@@ -59,7 +71,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         conn = connect(app_settings.auth_db_path)
         try:
-            initialize_database(conn)
             result = validate_token(
                 conn,
                 token,

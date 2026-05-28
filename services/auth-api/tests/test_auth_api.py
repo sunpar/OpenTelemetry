@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import app as app_module
 from app import create_app
 from db import connect, initialize_database, upsert_user
 from settings import Settings
@@ -105,3 +106,25 @@ def test_auth_api_does_not_expose_public_admin_routes(tmp_path):
 
     assert client.post("/users").status_code == 404
     assert client.post("/tokens").status_code == 404
+
+
+def test_verify_initializes_database_on_startup_not_per_request(tmp_path, monkeypatch):
+    db_path = tmp_path / "auth.sqlite3"
+    calls = []
+    real_initialize_database = app_module.initialize_database
+
+    def counting_initialize_database(conn):
+        calls.append(True)
+        real_initialize_database(conn)
+
+    monkeypatch.setattr(app_module, "initialize_database", counting_initialize_database)
+    settings = Settings(auth_db_path=str(db_path))
+    unknown_token = f"aotel_live_{new_token_id()}_aaaaaaaaaaaaaaaa"
+
+    with TestClient(create_app(settings=settings)) as client:
+        assert len(calls) == 1
+
+        response = client.get("/auth/verify", headers=_headers(unknown_token))
+
+        assert response.status_code == 401
+        assert len(calls) == 1
