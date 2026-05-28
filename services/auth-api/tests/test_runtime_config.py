@@ -9,4 +9,4 @@ def test_auth_api_dockerfile_execs_uvicorn_from_shell():
 
     assert "COPY packages/auth-core ./packages/auth-core" in dockerfile
     assert "RUN pip install --no-cache-dir ./packages/auth-core ./services/auth-api" in dockerfile
-    assert 'CMD ["sh", "-c", "exec uvicorn app:app --host ${AUTH_API_HOST} --port ${AUTH_API_PORT}"]' in dockerfile
+    assert 'CMD ["sh", "-c", "exec uvicorn auth_api.app:app --host ${AUTH_API_HOST} --port ${AUTH_API_PORT}"]' in dockerfile

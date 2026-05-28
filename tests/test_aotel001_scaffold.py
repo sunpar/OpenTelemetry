@@ -91,6 +91,8 @@ def test_initial_source_packages_import_cleanly():
     package_versions = {
         "packages/auth-core/src/agent_otel_auth_core/__init__.py": "0.1.0",
         "services/auth-api/src/auth_api/__init__.py": "0.1.0",
+        "services/auth-api/src/auth_api/app.py": None,
+        "services/auth-api/src/auth_api/settings.py": None,
         "cli/otelctl/src/otelctl_auth/__init__.py": None,
     }
     for relative_init, expected_version in package_versions.items():

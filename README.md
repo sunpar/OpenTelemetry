@@ -84,6 +84,9 @@ agent-otel-trial/
         tokens.py
         models.py
         settings.py
+        auth_api/
+          app.py
+          settings.py
       tests/
   packages/
     auth-core/
