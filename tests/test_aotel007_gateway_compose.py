@@ -51,7 +51,7 @@ def test_gateway_does_not_publish_internal_ingestion_ports():
 
     assert "ports" not in compose["services"]["auth-api"]
     assert "ports" not in compose["services"]["otel-collector"]
-    assert compose["services"]["nginx"]["ports"] == ["${GATEWAY_PORT:-8088}:8088"]
+    assert compose["services"]["nginx"]["ports"] == ["${GATEWAY_HOST:-127.0.0.1}:${GATEWAY_PORT:-8088}:8088"]
 
     for service in compose["services"].values():
         for port in service.get("ports", []) or []:
@@ -77,7 +77,14 @@ def test_makefile_wires_gateway_targets_and_otelctl_context():
     assert "docker compose -f compose/docker-compose.gateway.yml up -d" in makefile
     assert "docker compose -f compose/docker-compose.gateway.yml down" in makefile
     assert "docker compose -f compose/docker-compose.gateway.yml logs -f" in makefile
-    assert "docker compose -f compose/docker-compose.gateway.yml exec auth-api" in makefile
+    assert "docker compose -f compose/docker-compose.gateway.yml exec -T auth-api" in makefile
     assert "python /workspace/cli/otelctl/src/otelctl.py" in makefile
     assert "scripts/smoke-test-otel.py" in makefile
-    assert "not implemented yet" not in makefile.lower()
+    assert "test -f scripts/smoke-test-otel.py" in makefile
+
+
+def test_makefile_does_not_create_signoz_managed_network():
+    makefile = (ROOT / "Makefile").read_text()
+
+    assert "docker network create \"$(SIGNOZ_NETWORK)\"" not in makefile
+    assert "-f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans" in makefile

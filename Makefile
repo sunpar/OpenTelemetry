@@ -12,13 +12,15 @@ CAPTURE_PROFILE ?= normal
 ENDPOINT ?= $(AOTEL_PUBLIC_ENDPOINT)
 EXPIRES ?= 90d
 GATEWAY_NETWORK ?= agent-otel-gateway
+GATEWAY_HOST ?= 127.0.0.1
 GATEWAY_PORT ?= 8088
 PROFILE ?= normal
 SIGNOZ_NETWORK ?= signoz-net
+SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
 TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
 
-export AUTH_API_DB_PATH GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
+export AUTH_API_DB_PATH GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
 .PHONY: help signoz-up signoz-down gateway-up up down logs user token smoke install-codex install-claude
 
@@ -55,20 +57,22 @@ signoz-up:
 	@if [ ! -d "$(SIGNOZ_VENDOR_DIR)/.git" ]; then \
 		git clone -b main https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
 	fi
-	@docker network inspect "$(SIGNOZ_NETWORK)" >/dev/null 2>&1 || docker network create "$(SIGNOZ_NETWORK)" >/dev/null
-	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml up -d --remove-orphans
+	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
 
 signoz-down:
 	@if [ ! -f "$(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml" ]; then \
 		printf '%s\n' 'SigNoz vendor compose file is missing. Run make signoz-up first.'; \
 		exit 2; \
 	fi
-	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml down
+	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) down
 
 gateway-up: up
 
 up:
-	@docker network inspect "$(SIGNOZ_NETWORK)" >/dev/null 2>&1 || docker network create "$(SIGNOZ_NETWORK)" >/dev/null
+	@docker network inspect "$(SIGNOZ_NETWORK)" >/dev/null 2>&1 || { \
+		printf '%s\n' 'SigNoz network is missing. Run make signoz-up first.'; \
+		exit 2; \
+	}
 	docker compose -f compose/docker-compose.gateway.yml up -d
 
 down:
@@ -80,14 +84,18 @@ logs:
 user:
 	$(call require_var,EMAIL,make user EMAIL=alice@example.com TEAM=quant-dev)
 	$(call require_var,TEAM,make user EMAIL=alice@example.com TEAM=quant-dev)
-	docker compose -f compose/docker-compose.gateway.yml exec auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
+	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
 
 token:
 	$(call require_var,EMAIL,make token EMAIL=alice@example.com)
-	docker compose -f compose/docker-compose.gateway.yml exec auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
+	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
 	$(call require_var,TOKEN,make smoke TOKEN=<issued-token>)
+	@test -f scripts/smoke-test-otel.py || { \
+		printf '%s\n' 'Smoke test script is not present in this stack slice. Run the AOTEL-009 smoke-test branch or add scripts/smoke-test-otel.py.'; \
+		exit 2; \
+	}
 	python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)" --token "$(TOKEN)"
 
 install-codex:
