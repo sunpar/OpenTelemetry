@@ -99,6 +99,7 @@ def record_ingest_audit(
           remote_addr, created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
         """,
         (
             token_id,
@@ -111,5 +112,6 @@ def record_ingest_audit(
             timestamp,
         ),
     )
+    row = cursor.fetchone()
     conn.commit()
-    return int(cursor.lastrowid)
+    return int(row["id"])

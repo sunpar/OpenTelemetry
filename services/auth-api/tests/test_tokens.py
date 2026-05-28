@@ -88,6 +88,19 @@ def test_validate_token_accepts_active_token_and_writes_audit_row():
     assert audit["remote_addr"] == "203.0.113.10"
 
 
+def test_validate_token_normalizes_original_uri_for_scope_and_audit():
+    conn = _conn()
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+    issued = issue_token(conn, user_id=user.id, scopes=("logs",))
+
+    result = validate_token(conn, issued.token, path="/v1/logs?foo=bar")
+
+    assert result.ok is True
+    audit = conn.execute("SELECT path, status_code FROM ingest_audit").fetchone()
+    assert audit["path"] == "/v1/logs"
+    assert audit["status_code"] == 204
+
+
 def test_validate_token_rejects_hash_mismatch_with_401():
     conn = _conn()
     user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
@@ -101,6 +114,24 @@ def test_validate_token_rejects_hash_mismatch_with_401():
     assert result.reason == "hash_mismatch"
     audit = conn.execute("SELECT token_id, status_code FROM ingest_audit").fetchone()
     assert audit["token_id"] == issued.record.id
+    assert audit["status_code"] == 401
+
+
+def test_validate_token_audits_malformed_secret_when_token_id_is_visible():
+    conn = _conn()
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+    issued = issue_token(conn, user_id=user.id)
+    bad_token = f"aotel_live_{issued.record.id}_short"
+
+    result = validate_token(conn, bad_token, path="/v1/logs")
+
+    assert result.ok is False
+    assert result.status_code == 401
+    assert result.reason == "malformed"
+    audit = conn.execute("SELECT token_id, user_id, team_id, status_code FROM ingest_audit").fetchone()
+    assert audit["token_id"] == issued.record.id
+    assert audit["user_id"] == user.id
+    assert audit["team_id"] == "quant-dev"
     assert audit["status_code"] == 401
 
 
@@ -149,3 +180,14 @@ def test_issue_token_supports_max_capture_profile_and_short_scopes():
     result = validate_token(conn, issued.token, path="/v1/traces")
     assert result.ok is True
     assert result.headers["X-Telemetry-Capture-Profile"] == "max"
+
+
+def test_issue_token_rejects_comma_delimited_and_unknown_scopes():
+    conn = _conn()
+    user = upsert_user(conn, email="alice@example.com", team_id="quant-dev")
+
+    with pytest.raises(ValueError, match="scope must not contain commas"):
+        issue_token(conn, user_id=user.id, scopes=("logs,traces",))
+
+    with pytest.raises(ValueError, match="unsupported scope"):
+        issue_token(conn, user_id=user.id, scopes=("logs", "profiles"))

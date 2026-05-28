@@ -83,3 +83,33 @@ def test_record_ingest_audit_never_requires_or_stores_request_body():
     assert row["path"] == "/v1/logs"
     assert row["content_length"] == 42
     assert "body" not in row.keys()
+
+
+def test_record_ingest_audit_returns_inserted_id():
+    conn = connect(":memory:")
+    initialize_database(conn)
+
+    first_id = record_ingest_audit(
+        conn,
+        token_id=None,
+        user_id=None,
+        team_id=None,
+        path="/v1/logs",
+        content_length=None,
+        status_code=401,
+        remote_addr=None,
+    )
+    second_id = record_ingest_audit(
+        conn,
+        token_id=None,
+        user_id=None,
+        team_id=None,
+        path="/v1/traces",
+        content_length=None,
+        status_code=401,
+        remote_addr=None,
+    )
+
+    assert second_id == first_id + 1
+    row = conn.execute("SELECT path FROM ingest_audit WHERE id = ?", (second_id,)).fetchone()
+    assert row["path"] == "/v1/traces"
