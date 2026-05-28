@@ -42,6 +42,7 @@ to assemble OpenTelemetry settings by hand.
 - [Onboarding](docs/onboarding.md)
 - [Token Model](docs/token-model.md)
 - [Data Model](docs/data-model.md)
+- [Codex Telemetry Storage Map](docs/codex-telemetry-storage.md)
 - [Operating Guide](docs/operating.md)
 - [Storage and Retention](docs/storage-retention.md)
 - [Troubleshooting](docs/troubleshooting.md)
