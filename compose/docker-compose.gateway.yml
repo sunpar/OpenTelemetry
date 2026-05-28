@@ -1,0 +1,51 @@
+name: agent-otel-gateway
+
+services:
+  auth-api:
+    build:
+      context: ../services/auth-api
+    environment:
+      AUTH_API_DB_PATH: ${AUTH_API_DB_PATH:-/data/auth-api.sqlite3}
+      AUTH_API_HOST: 0.0.0.0
+      AUTH_API_PORT: "8000"
+    volumes:
+      - auth-api-data:/data
+      - ../:/workspace:ro
+    expose:
+      - "8000"
+    networks:
+      - gateway
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - auth-api
+      - otel-collector
+    volumes:
+      - ../infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - ${GATEWAY_PORT:-8088}:8088
+    networks:
+      - gateway
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command:
+      - --config=/etc/otelcol-contrib/collector.local.yaml
+    volumes:
+      - ../infra/otel/collector.local.yaml:/etc/otelcol-contrib/collector.local.yaml:ro
+    expose:
+      - "4318"
+    networks:
+      - gateway
+      - signoz
+
+volumes:
+  auth-api-data:
+
+networks:
+  gateway:
+    name: ${GATEWAY_NETWORK:-agent-otel-gateway}
+  signoz:
+    external: true
+    name: ${SIGNOZ_NETWORK:-signoz-net}

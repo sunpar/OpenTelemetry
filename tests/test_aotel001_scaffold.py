@@ -26,7 +26,7 @@ def test_makefile_defines_documented_entry_points():
     ]:
         assert re.search(rf"^{re.escape(target)}\s*:", makefile, re.MULTILINE)
 
-    assert "not implemented yet" in makefile.lower()
+    assert "not implemented yet" not in makefile.lower()
 
 
 def test_env_example_contains_only_non_secret_defaults():
@@ -113,7 +113,7 @@ def test_make_help_runs_without_downstream_services():
     assert result.stderr == ""
 
 
-def test_make_user_reports_required_variables_before_placeholder():
+def test_make_user_reports_required_variables_before_compose_execution():
     result = subprocess.run(
         ["make", "user"],
         cwd=ROOT,
