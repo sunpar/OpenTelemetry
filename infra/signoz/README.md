@@ -72,6 +72,28 @@ policy in `docs/storage-retention.md`:
 Check disk growth during the first week and shorten retention before enabling
 any max-capture profile.
 
+## Dashboard Import
+
+Starter dashboard JSON files live in:
+
+```text
+infra/signoz/dashboards/
+```
+
+The current files are starter contracts rather than finalized SigNoz exports:
+
+- `team-usage.json`
+- `codex-overview.json`
+- `claude-overview.json`
+- `tool-usage.json`
+- `collector-health.json`
+
+Use manual import after the first live SigNoz instance confirms the dashboard
+schema expected by the installed version. Keep the default filters on
+`telemetry.user.email`, `telemetry.team.id`, `agent.tool`, and
+`agent.capture.profile`, and avoid default metric group-bys on session ids,
+branch names, command text, file paths, or full repo remotes.
+
 ## Shutdown
 
 Stop the upstream stack without deleting volumes:

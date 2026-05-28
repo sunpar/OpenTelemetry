@@ -1,0 +1,63 @@
+{
+  "schema_version": "agent-otel-trial.dashboard.v1",
+  "title": "Claude Code Overview",
+  "description": "Starter Claude Code telemetry dashboard for sessions, usage, tools, and API events.",
+  "filters": [
+    "telemetry.user.email",
+    "telemetry.team.id",
+    "agent.tool",
+    "agent.capture.profile",
+    "model.name",
+    "run.outcome"
+  ],
+  "panels": [
+    {
+      "title": "Claude sessions",
+      "signal": "metrics",
+      "query": "sum claude_code.session.count",
+      "group_by": ["telemetry.user.email"]
+    },
+    {
+      "title": "Claude token counters",
+      "signal": "metrics",
+      "query": "sum claude_code.token.usage",
+      "group_by": ["model.name"]
+    },
+    {
+      "title": "Claude cost counters",
+      "signal": "metrics",
+      "query": "sum claude_code.cost.usage",
+      "group_by": ["model.name", "telemetry.team.id"]
+    },
+    {
+      "title": "Claude tool decisions",
+      "signal": "logs",
+      "query": "count Claude tool decision events",
+      "group_by": ["telemetry.user.email"]
+    },
+    {
+      "title": "Claude tool results",
+      "signal": "logs",
+      "query": "count Claude tool result events",
+      "group_by": ["run.outcome"]
+    },
+    {
+      "title": "Claude API errors",
+      "signal": "logs",
+      "query": "count Claude API error events",
+      "group_by": ["model.name", "run.outcome"]
+    },
+    {
+      "title": "Claude retry exhaustion",
+      "signal": "logs",
+      "query": "count retry exhaustion events",
+      "group_by": ["model.name"]
+    },
+    {
+      "title": "Claude compaction events",
+      "signal": "logs",
+      "query": "count compaction events",
+      "group_by": ["telemetry.user.email"]
+    }
+  ]
+}

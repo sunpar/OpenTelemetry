@@ -1,0 +1,46 @@
+{
+  "schema_version": "agent-otel-trial.dashboard.v1",
+  "title": "Collector Health",
+  "description": "Starter Collector resilience dashboard for gateway operations.",
+  "filters": [
+    "telemetry.user.email",
+    "telemetry.team.id",
+    "agent.tool",
+    "agent.capture.profile",
+    "service.name",
+    "exporter",
+    "signal"
+  ],
+  "panels": [
+    {
+      "title": "Exporter send failures",
+      "signal": "metrics",
+      "query": "sum otelcol_exporter_send_failed_spans + logs + metric_points",
+      "group_by": ["exporter", "signal"]
+    },
+    {
+      "title": "Exporter queue size",
+      "signal": "metrics",
+      "query": "max otelcol_exporter_queue_size",
+      "group_by": ["exporter", "signal"]
+    },
+    {
+      "title": "Exporter queue capacity",
+      "signal": "metrics",
+      "query": "max otelcol_exporter_queue_capacity",
+      "group_by": ["exporter", "signal"]
+    },
+    {
+      "title": "Refused logs, spans, and metrics",
+      "signal": "metrics",
+      "query": "sum otelcol_receiver_refused_log_records + spans + metric_points",
+      "group_by": ["signal"]
+    },
+    {
+      "title": "Memory limiter activity",
+      "signal": "metrics",
+      "query": "sum otelcol_processor_refused_log_records + spans + metric_points for memory_limiter",
+      "group_by": ["signal"]
+    }
+  ]
+}

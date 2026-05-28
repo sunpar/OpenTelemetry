@@ -1,0 +1,39 @@
+{
+  "schema_version": "agent-otel-trial.dashboard.v1",
+  "title": "Team Usage",
+  "description": "Starter team-level telemetry overview for the agent OpenTelemetry trial.",
+  "filters": [
+    "telemetry.user.email",
+    "telemetry.team.id",
+    "agent.tool",
+    "agent.capture.profile",
+    "model.name",
+    "run.outcome"
+  ],
+  "panels": [
+    {
+      "title": "Events by user",
+      "signal": "logs",
+      "query": "count logs grouped by telemetry.user.email",
+      "group_by": ["telemetry.user.email"]
+    },
+    {
+      "title": "Events by agent tool",
+      "signal": "logs",
+      "query": "count logs grouped by agent.tool",
+      "group_by": ["agent.tool"]
+    },
+    {
+      "title": "Active users per day",
+      "signal": "logs",
+      "query": "distinct telemetry.user.email by day",
+      "group_by": ["telemetry.team.id"]
+    },
+    {
+      "title": "Ingest volume by signal",
+      "signal": "logs,traces,metrics",
+      "query": "count telemetry grouped by signal",
+      "group_by": ["telemetry.team.id", "agent.tool"]
+    }
+  ]
+}

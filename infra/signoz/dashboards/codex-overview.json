@@ -1,0 +1,57 @@
+{
+  "schema_version": "agent-otel-trial.dashboard.v1",
+  "title": "Codex Overview",
+  "description": "Starter Codex telemetry dashboard with user, team, tool, and capture filters.",
+  "filters": [
+    "telemetry.user.email",
+    "telemetry.team.id",
+    "agent.tool",
+    "agent.capture.profile",
+    "model.name",
+    "run.outcome"
+  ],
+  "panels": [
+    {
+      "title": "Codex conversations started",
+      "signal": "logs",
+      "query": "count Codex conversation start events",
+      "group_by": ["telemetry.user.email"]
+    },
+    {
+      "title": "Codex API request count",
+      "signal": "logs",
+      "query": "count Codex API request events",
+      "group_by": ["model.name"]
+    },
+    {
+      "title": "Codex API request failures",
+      "signal": "logs",
+      "query": "count Codex API error events",
+      "group_by": ["run.outcome", "model.name"]
+    },
+    {
+      "title": "Codex API request duration",
+      "signal": "traces",
+      "query": "p50 p95 Codex API span duration",
+      "group_by": ["model.name"]
+    },
+    {
+      "title": "Codex tool decisions",
+      "signal": "logs",
+      "query": "count Codex tool decision events",
+      "group_by": ["telemetry.user.email"]
+    },
+    {
+      "title": "Codex tool results",
+      "signal": "logs",
+      "query": "count Codex tool result events",
+      "group_by": ["run.outcome"]
+    },
+    {
+      "title": "Codex prompt count and length",
+      "signal": "logs",
+      "query": "count prompts and summarize prompt length",
+      "group_by": ["agent.capture.profile"]
+    }
+  ]
+}
