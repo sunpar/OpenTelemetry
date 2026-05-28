@@ -19,6 +19,7 @@ Checks:
 ```sh
 curl -i http://localhost:8088/v1/logs
 curl -i http://localhost:8088/v1/logs -H 'Authorization: Bearer invalid'
+python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088 --token <issued-token>
 ```
 
 Inspect auth-api logs:
@@ -72,7 +73,13 @@ Checks:
 - Review `infra/nginx/nginx.conf`.
 - Review `infra/otel/collector.local.yaml`.
 - Confirm Collector receives traffic only from ingress.
-- Send a test log through Nginx, not directly to Collector.
+- Send a test log through Nginx, not directly to Collector:
+
+  ```sh
+  python3 scripts/send-test-log.py \
+    --endpoint http://localhost:8088 \
+    --token <issued-token>
+  ```
 
 ## Request Reaches Collector But Not SigNoz
 
@@ -92,6 +99,31 @@ docker compose -f compose/docker-compose.gateway.yml ps
 ```
 
 Inspect Collector health metrics and exporter logs.
+
+## Smoke Test Reports Direct Ingestion Port Is Reachable
+
+The smoke script expects these host ports to be closed:
+
+```text
+127.0.0.1:4318
+127.0.0.1:4317
+```
+
+If either port is reachable, a client may be able to bypass auth-api and Nginx.
+Checks:
+
+```sh
+docker compose -f compose/docker-compose.gateway.yml ps
+docker ps --format '{{.Names}} {{.Ports}}' | grep -E '4317|4318'
+```
+
+Fixes:
+
+1. Remove host-published `4317` or `4318` mappings from local Compose
+   overrides.
+2. Keep Collector OTLP/HTTP exposed only on the Docker network.
+3. Keep SigNoz ingestion reachable only from the gateway Collector network.
+4. Re-run `make smoke TOKEN=<issued-token>`.
 
 ## SigNoz Shows Data Without User Or Team
 

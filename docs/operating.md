@@ -83,6 +83,32 @@ Valid token path:
 make smoke TOKEN=<issued-token>
 ```
 
+The smoke target runs:
+
+```sh
+python3 scripts/smoke-test-otel.py \
+  --endpoint http://localhost:8088 \
+  --token <issued-token>
+```
+
+It checks:
+
+- invalid bearer tokens return `401` on `/v1/logs`, `/v1/traces`, and
+  `/v1/metrics`
+- a valid token can send a JSON OTLP test log through Nginx to the Collector
+- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are sent through the
+  ingress overwrite path
+- host ports `127.0.0.1:4318` and `127.0.0.1:4317` are not reachable as direct
+  ingestion paths
+
+To send only one test log:
+
+```sh
+python3 scripts/send-test-log.py \
+  --endpoint http://localhost:8088 \
+  --token <issued-token>
+```
+
 SigNoz must show a test log with:
 
 - `telemetry.user.email`
