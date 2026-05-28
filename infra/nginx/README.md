@@ -17,14 +17,21 @@ forwarding the OTLP payload body.
 
 ## Trust Boundary
 
-Clients are trusted only for `Authorization: Bearer <token>`. Client-supplied
-`X-Telemetry-*` headers are overwritten before proxying to the Collector.
-`auth-api` is the source of user, team, token, and capture-profile identity.
+Clients are trusted only for `Authorization: Bearer <token>`, and that token is
+sent only to `auth-api`. The Collector hop disables client header passthrough
+and re-adds only OTLP transport headers plus trusted `X-Telemetry-*` metadata
+from `auth-api`.
 
 Source IP is forwarded as `X-Telemetry-Source-Ip` from Nginx-controlled
-`$remote_addr`. The config can honor `X-Forwarded-For` only from configured
-private/internal proxy ranges through Nginx real-IP handling; it does not append
-or forward an arbitrary client-provided chain.
+`$remote_addr`. Real-IP handling is disabled by default so client-supplied
+`X-Forwarded-For` cannot rewrite the source address. Deployments behind a load
+balancer may enable Nginx real-IP handling only for exact proxy addresses, not
+broad private address ranges.
+
+The auth subrequest forwards normalized request metadata with
+`X-Original-URI`, `X-Original-Method`, `X-Original-Content-Length`, and
+`X-Telemetry-Source-Ip` so `auth-api` can enforce signal scopes and audit the
+original OTLP request.
 
 ## Deployment Notes
 
