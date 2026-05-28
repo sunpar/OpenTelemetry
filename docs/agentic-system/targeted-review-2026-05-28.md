@@ -224,12 +224,36 @@ Files changed:
 
 ## Next Slices
 
-1. Refresh feature model.
+## Fourth Slice Applied
 
-   Update `docs/agentic-system/feature-model.json` so component status, code
-   paths, test commands, and doc/code mismatch notes match the current app.
+Scope: refresh `docs/agentic-system/feature-model.json` so planning data
+matches the implemented and stacked app shape.
 
-2. Tighten root verification contract.
+Changes:
+
+- Added the shared auth-core component to the architecture model.
+- Updated token-control-plane code paths for `packages/auth-core` and packaged
+  `auth_api` modules.
+- Removed stale doc/code mismatch notes for SigNoz, installers, and operations.
+- Updated tests, entry points, unknowns, and evidence for CI, dashboards,
+  installers, and package boundaries.
+
+Focused check:
+
+```sh
+.venv/bin/python -m json.tool docs/agentic-system/feature-model.json
+```
+
+Result: feature model JSON parses successfully.
+
+Files changed:
+
+- `docs/agentic-system/feature-model.json`
+- `docs/agentic-system/targeted-review-2026-05-28.md`
+
+## Next Slices
+
+1. Tighten root verification contract.
 
    Ensure CI/dev requirements and Make targets exercise the shared package,
    package imports, shell parse checks, Compose config validation, and
