@@ -1,0 +1,17 @@
+name: agent-otel-signoz
+
+x-agent-otel-signoz:
+  strategy: official-compose-wrapper
+  upstream: https://github.com/SigNoz/signoz.git
+  upstream_revision: a8f5bdf2562c35c2896a5a287552e124fa2c0037
+  upstream_compose: .vendor/signoz/deploy/docker/docker-compose.yaml
+  safe_override: compose/docker-compose.signoz.override.yml
+  purpose: >
+    Keep this repository small while documenting the shared Docker network and
+    private-ingestion contract used by the gateway stack.
+
+services: {}
+
+networks:
+  signoz-net:
+    name: signoz-net
