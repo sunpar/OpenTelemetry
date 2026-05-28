@@ -9,12 +9,14 @@ endif
 AOTEL_PUBLIC_ENDPOINT ?= http://localhost:8088
 AUTH_API_DB_PATH ?= /data/auth-api.sqlite3
 CAPTURE_PROFILE ?= normal
+DOCKER_COMPOSE ?= docker compose
 ENDPOINT ?= $(AOTEL_PUBLIC_ENDPOINT)
 EXPIRES ?= 90d
 GATEWAY_NETWORK ?= agent-otel-gateway
 GATEWAY_HOST ?= 127.0.0.1
 GATEWAY_PORT ?= 8088
 PROFILE ?= normal
+PYTHON ?= python3
 SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
@@ -22,7 +24,7 @@ TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
 
 export AUTH_API_DB_PATH GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
-.PHONY: help signoz-up signoz-down gateway-up up down logs user token smoke install-codex install-claude
+.PHONY: help install-dev lint test static-check compose-config check signoz-up signoz-down gateway-up up down logs user token smoke install-codex install-claude
 
 define require_var
 	@if [ -z "$($(1))" ]; then \
@@ -36,6 +38,12 @@ help:
 	@printf '%s\n' 'Agent OpenTelemetry Trial'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Available targets:'
+	@printf '%s\n' '  make install-dev      Install local packages and validation tools.'
+	@printf '%s\n' '  make lint             Run Ruff.'
+	@printf '%s\n' '  make test             Run the Python test suite.'
+	@printf '%s\n' '  make static-check     Run docs/static checks and git diff --check.'
+	@printf '%s\n' '  make compose-config   Validate gateway and SigNoz Compose config.'
+	@printf '%s\n' '  make check            Run lint, tests, static checks, and Compose config.'
 	@printf '%s\n' '  make signoz-up       Clone/start the local SigNoz Docker stack.'
 	@printf '%s\n' '  make signoz-down     Stop the local SigNoz Docker stack.'
 	@printf '%s\n' '  make up              Start auth-api, Nginx, and Collector gateway.'
@@ -52,19 +60,38 @@ help:
 	@printf '%s\n' '  make install-claude ENDPOINT=... TOKEN=... [PROFILE=normal|max]'
 	@printf '%s\n' '                       Write Claude Code telemetry env file.'
 
+install-dev:
+	$(PYTHON) -m pip install -r requirements-dev.txt
+
+lint:
+	$(PYTHON) -m ruff check .
+
+test:
+	$(PYTHON) -m pytest -q
+
+static-check:
+	$(PYTHON) scripts/check-docs.py
+	git diff --check
+
+compose-config:
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null
+	$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null
+
+check: lint test static-check compose-config
+
 signoz-up:
 	@mkdir -p .vendor
 	@if [ ! -d "$(SIGNOZ_VENDOR_DIR)/.git" ]; then \
 		git clone -b main https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
 	fi
-	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
+	$(DOCKER_COMPOSE) -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
 
 signoz-down:
 	@if [ ! -f "$(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml" ]; then \
 		printf '%s\n' 'SigNoz vendor compose file is missing. Run make signoz-up first.'; \
 		exit 2; \
 	fi
-	docker compose -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) down
+	$(DOCKER_COMPOSE) -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) down
 
 gateway-up: up
 
@@ -73,22 +100,22 @@ up:
 		printf '%s\n' 'SigNoz network is missing. Run make signoz-up first.'; \
 		exit 2; \
 	}
-	docker compose -f compose/docker-compose.gateway.yml up -d
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d
 
 down:
-	docker compose -f compose/docker-compose.gateway.yml down
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml down
 
 logs:
-	docker compose -f compose/docker-compose.gateway.yml logs -f
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml logs -f
 
 user:
 	$(call require_var,EMAIL,make user EMAIL=alice@example.com TEAM=quant-dev)
 	$(call require_var,TEAM,make user EMAIL=alice@example.com TEAM=quant-dev)
-	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
 
 token:
 	$(call require_var,EMAIL,make token EMAIL=alice@example.com)
-	docker compose -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
+	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
 	@if [ -z "$${AOTEL_SMOKE_TOKEN:-}" ] && [ -z "$(TOKEN)" ]; then \

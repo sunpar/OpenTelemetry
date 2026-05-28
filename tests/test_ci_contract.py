@@ -55,6 +55,27 @@ def test_dev_requirements_install_local_packages_and_test_tools():
         assert expected in requirements
 
 
+def test_makefile_exposes_local_validation_contract():
+    makefile = (ROOT / "Makefile").read_text()
+
+    for expected in [
+        "install-dev:",
+        "$(PYTHON) -m pip install -r requirements-dev.txt",
+        "lint:",
+        "$(PYTHON) -m ruff check .",
+        "test:",
+        "$(PYTHON) -m pytest -q",
+        "static-check:",
+        "$(PYTHON) scripts/check-docs.py",
+        "git diff --check",
+        "compose-config:",
+        "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null",
+        "$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null",
+        "check: lint test static-check compose-config",
+    ]:
+        assert expected in makefile
+
+
 def test_docs_checker_runs_static_validation():
     result = subprocess.run(
         [sys.executable, str(DOC_CHECK)],

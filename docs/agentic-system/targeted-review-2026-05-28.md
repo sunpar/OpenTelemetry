@@ -253,8 +253,43 @@ Files changed:
 
 ## Next Slices
 
-1. Tighten root verification contract.
+## Fifth Slice Applied
 
-   Ensure CI/dev requirements and Make targets exercise the shared package,
-   package imports, shell parse checks, Compose config validation, and
-   `git diff --check`.
+Scope: expose the repo's local verification contract as root Make targets.
+
+Changes:
+
+- Added `install-dev`, `lint`, `test`, `static-check`, `compose-config`, and
+  `check` targets.
+- Added configurable `PYTHON` and `DOCKER_COMPOSE` variables.
+- Updated existing Compose-backed targets to use `DOCKER_COMPOSE`.
+- Added tests that assert the root validation contract is wired.
+- Updated agent-context docs with the Make-based verification path.
+
+Verification:
+
+```sh
+make check PYTHON=.venv/bin/python
+.venv/bin/python -m pytest tests/test_aotel001_scaffold.py tests/test_aotel007_gateway_compose.py tests/test_ci_contract.py -q
+.venv/bin/python scripts/check-docs.py
+git diff --check
+```
+
+Result: `make check` passed with 98 passed, 1 skipped; focused contract tests
+passed with 18 passed; static checks and diff check passed.
+
+Files changed:
+
+- `Makefile`
+- `tests/test_aotel001_scaffold.py`
+- `tests/test_aotel007_gateway_compose.py`
+- `tests/test_ci_contract.py`
+- `docs/agent-context/repo-map.md`
+- `docs/agent-context/test-commands.md`
+- `docs/agentic-system/targeted-review-2026-05-28.md`
+
+## Next Slices
+
+- No additional review/refactor slices are currently queued in this artifact.
+  New slices should come from CI failures, PR review feedback, or a refreshed
+  feature/slice plan after the stacked PRs merge.

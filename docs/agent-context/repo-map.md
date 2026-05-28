@@ -104,6 +104,12 @@ docs/
 - `make smoke TOKEN=...`: run local gateway smoke/security checks.
 - `make install-codex ENDPOINT=... TOKEN=...`: install Codex telemetry config.
 - `make install-claude ENDPOINT=... TOKEN=...`: write Claude Code telemetry env.
+- `make install-dev`: install local packages and validation tools.
+- `make lint`: run Ruff.
+- `make test`: run the Python test suite.
+- `make static-check`: run docs/static checks and `git diff --check`.
+- `make compose-config`: validate gateway and SigNoz Compose config.
+- `make check`: run the root local verification contract.
 - `otelctl users add`
 - `otelctl users disable`
 - `otelctl tokens issue`

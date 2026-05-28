@@ -10,7 +10,7 @@ scripts, dashboard JSON, and GitHub Actions CI.
 Latest local baseline for the merged implementation:
 
 ```text
-97 passed, 1 skipped
+98 passed, 1 skipped
 ```
 
 The skipped test is the opt-in live gateway smoke test, which requires a
@@ -80,6 +80,17 @@ git diff --check
 - shell syntax for `scripts/*.sh`
 
 ## Targeted Test Commands
+
+Root Make verification contract:
+
+```sh
+make install-dev PYTHON=.venv/bin/python
+make lint PYTHON=.venv/bin/python
+make test PYTHON=.venv/bin/python
+make static-check PYTHON=.venv/bin/python
+make compose-config
+make check PYTHON=.venv/bin/python
+```
 
 Auth domain and `otelctl` behavior:
 
