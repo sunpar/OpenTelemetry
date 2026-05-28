@@ -87,6 +87,16 @@
           "docs/milestones.md",
           "docs/troubleshooting.md"
         ]
+      },
+      {
+        "id": "C07",
+        "name": "shared-auth-core",
+        "summary": "Shared Python package for auth models, SQLite migrations, database helpers, token issuance, token validation, and audit behavior used by auth-api and otelctl.",
+        "status": "implemented",
+        "docs": [
+          "docs/token-model.md",
+          "docs/agent-context/repo-map.md"
+        ]
       }
     ]
   },
@@ -107,9 +117,11 @@
         "otelctl users disable"
       ],
       "code_paths": [
+        "packages/auth-core/src/agent_otel_auth_core/",
+        "services/auth-api/src/auth_api/",
         "services/auth-api/src/",
-        "services/auth-api/migrations/",
-        "cli/otelctl/src/"
+        "cli/otelctl/src/otelctl.py",
+        "cli/otelctl/src/otelctl_auth/"
       ],
       "docs": [
         "docs/token-model.md",
@@ -118,7 +130,8 @@
       ],
       "tests": [
         "services/auth-api/tests/",
-        "cli/otelctl/tests/"
+        "cli/otelctl/tests/",
+        "tests/test_aotel001_scaffold.py"
       ],
       "data_models": [
         "users",
@@ -126,7 +139,8 @@
         "ingest_audit"
       ],
       "related_components": [
-        "C01"
+        "C01",
+        "C07"
       ],
       "related_features": [
         "F02",
@@ -134,7 +148,8 @@
       ],
       "known_risks": [
         "Token secrets must not be stored in plaintext.",
-        "Revoked, expired, disabled-user, and scoped token failures must be deterministic.",
+        "Revoked, expired, disabled-user, scoped-token, and malformed-token failures must be deterministic.",
+        "Original URI normalization and audit attribution must remain consistent across auth-api and otelctl.",
         "Max-capture profile must be explicit and short-lived."
       ],
       "doc_code_mismatches": [],
@@ -163,8 +178,9 @@
         "docs/milestones.md"
       ],
       "tests": [
-        "scripts/smoke-test-otel.py",
-        "infra/nginx tests or container config checks"
+        "tests/test_aotel005_nginx.py",
+        "tests/test_aotel007_gateway_compose.py",
+        "scripts/smoke-test-otel.py"
       ],
       "data_models": [
         "X-Telemetry-User",
@@ -209,7 +225,8 @@
         "docs/data-model.md"
       ],
       "tests": [
-        "Collector config validation",
+        "tests/test_aotel006_collector.py",
+        "tests/test_aotel007_gateway_compose.py",
         "scripts/smoke-test-otel.py"
       ],
       "data_models": [
@@ -250,7 +267,9 @@
       ],
       "code_paths": [
         "compose/docker-compose.signoz.yml",
-        "infra/signoz/README.md"
+        "compose/docker-compose.signoz.override.yml",
+        "infra/signoz/README.md",
+        "infra/signoz/dashboards/"
       ],
       "docs": [
         "docs/architecture.md",
@@ -258,8 +277,9 @@
         "docs/operating.md"
       ],
       "tests": [
-        "docker compose config",
-        "make signoz-up smoke check"
+        "tests/test_aotel008_signoz.py",
+        "tests/test_aotel012_dashboards.py",
+        "docker compose -f compose/docker-compose.signoz.yml config"
       ],
       "data_models": [
         "SigNoz retention configuration",
@@ -277,9 +297,7 @@
         "Publishing SigNoz OTLP ports would bypass auth.",
         "Retention defaults must be deliberate for trial volume."
       ],
-      "doc_code_mismatches": [
-        "No SigNoz files exist yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     },
     {
@@ -305,9 +323,9 @@
         "docs/storage-retention.md"
       ],
       "tests": [
-        "TOML parse check",
-        "installer backup tests",
-        "shell syntax checks"
+        "tests/test_aotel010_codex_installer.py",
+        "tests/test_aotel011_claude_installer.py",
+        "scripts/check-docs.py"
       ],
       "data_models": [
         "agent.capture.profile",
@@ -324,10 +342,8 @@
         "Installer must not overwrite unrelated user config.",
         "Prompt, tool content, and raw API body capture must stay opt-in."
       ],
-      "doc_code_mismatches": [
-        "No templates or installers exist yet."
-      ],
-      "confidence": "medium"
+      "doc_code_mismatches": [],
+      "confidence": "high"
     },
     {
       "id": "F06",
@@ -350,8 +366,9 @@
         "docs/storage-retention.md"
       ],
       "tests": [
-        "dashboard JSON validation",
-        "manual import checklist"
+        "tests/test_aotel012_dashboards.py",
+        "scripts/check-docs.py",
+        "manual SigNoz import checklist"
       ],
       "data_models": [
         "telemetry.*",
@@ -386,6 +403,9 @@
       "user_or_system_value": "Turns the repo into a repeatable team trial rather than a manual configuration bundle.",
       "entry_points": [
         "Makefile",
+        "requirements-dev.txt",
+        ".github/workflows/ci.yml",
+        "scripts/check-docs.py",
         "scripts/smoke-test-otel.py",
         "scripts/send-test-log.py",
         "docs/operating.md",
@@ -393,9 +413,12 @@
       ],
       "code_paths": [
         "Makefile",
+        "requirements-dev.txt",
+        ".github/workflows/ci.yml",
         "scripts/",
         "compose/",
-        "docs/"
+        "docs/",
+        "tests/test_ci_contract.py"
       ],
       "docs": [
         "docs/operating.md",
@@ -404,11 +427,12 @@
         "docs/milestones.md"
       ],
       "tests": [
-        "make smoke",
-        "invalid token returns 401",
-        "all OTLP paths require auth",
-        "spoofed headers are overwritten",
-        "direct Collector and SigNoz OTLP ports are not published"
+        "tests/test_aotel009_smoke_scripts.py",
+        "tests/test_ci_contract.py",
+        "python scripts/check-docs.py",
+        "python -m ruff check .",
+        "docker compose -f compose/docker-compose.gateway.yml config",
+        "docker compose -f compose/docker-compose.signoz.yml config"
       ],
       "data_models": [
         "ingest_audit",
@@ -430,9 +454,7 @@
         "Smoke tests must verify security properties, not only happy-path ingest.",
         "Retention guidance must stay aligned with capture profiles."
       ],
-      "doc_code_mismatches": [
-        "No operational scripts or Makefile exist yet."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     },
     {
@@ -443,17 +465,19 @@
       "intended_behavior": "The team does not duplicate SigNoz storage unless a concrete downstream SQL requirement appears.",
       "user_or_system_value": "Prevents premature storage expansion during the trial.",
       "entry_points": [
-        "compose/docker-compose.warehouse.yml"
+        "docs/storage-retention.md",
+        "docs/milestones.md"
       ],
       "code_paths": [
-        "compose/docker-compose.warehouse.yml"
+        "docs/storage-retention.md",
+        "docs/milestones.md"
       ],
       "docs": [
         "docs/storage-retention.md",
         "docs/milestones.md"
       ],
       "tests": [
-        "Not in v1"
+        "documentation/static checks only; warehouse Compose is intentionally absent in v1"
       ],
       "data_models": [
         "future ClickHouse exporter schema"
@@ -469,15 +493,14 @@
       "known_risks": [
         "Adding this too early doubles storage and operational surface."
       ],
-      "doc_code_mismatches": [
-        "Warehouse profile intentionally absent."
-      ],
+      "doc_code_mismatches": [],
       "confidence": "high"
     }
   ],
   "unknowns": [
     "Live end-to-end ingestion through SigNoz still needs to be run on a real local stack.",
-    "No SigNoz dashboard JSON has been validated against a live SigNoz instance.",
+    "Dashboard JSON has local structural validation but has not been imported into a live SigNoz instance.",
+    "The Collector config has local structural validation but has not been validated with the Collector binary.",
     "Codex telemetry config must be re-verified against the installed CLI before shipping the installer.",
     "No deployment environment or TLS termination layer is implemented.",
     "SQLite is the v1 persistence layer; Postgres migration remains future work."
@@ -510,6 +533,26 @@
     {
       "path": "docs/agent-context/repo-map.md",
       "summary": "Records current source boundaries, entry points, risk hotspots, and remaining live-validation unknowns."
+    },
+    {
+      "path": "packages/auth-core/src/agent_otel_auth_core/",
+      "summary": "Contains the shared auth models, migration, database helpers, token issuance, validation, and audit logic."
+    },
+    {
+      "path": "services/auth-api/src/auth_api/",
+      "summary": "Contains the packaged FastAPI runtime entrypoint and settings for auth-api."
+    },
+    {
+      "path": "requirements-dev.txt",
+      "summary": "Installs local packages and validation tools for tests and CI."
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "summary": "Runs Python tests, Ruff, static docs checks, whitespace checks, and Compose validation."
+    },
+    {
+      "path": "tests/",
+      "summary": "Covers auth behavior, CLI behavior, configs, installers, smoke scripts, dashboards, and CI contracts."
     }
   ]
 }
