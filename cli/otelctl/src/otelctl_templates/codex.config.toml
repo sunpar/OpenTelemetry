@@ -1,0 +1,24 @@
+[otel]
+environment = "team-trial"
+log_user_prompt = {{LOG_USER_PROMPT}}
+
+[otel.exporter.otlp-http]
+endpoint = "{{ENDPOINT}}/v1/logs"
+protocol = "binary"
+
+[otel.exporter.otlp-http.headers]
+Authorization = "Bearer {{TOKEN}}"
+
+[otel.metrics_exporter.otlp-http]
+endpoint = "{{ENDPOINT}}/v1/metrics"
+protocol = "binary"
+
+[otel.metrics_exporter.otlp-http.headers]
+Authorization = "Bearer {{TOKEN}}"
+
+[otel.trace_exporter.otlp-http]
+endpoint = "{{ENDPOINT}}/v1/traces"
+protocol = "binary"
+
+[otel.trace_exporter.otlp-http.headers]
+Authorization = "Bearer {{TOKEN}}"
