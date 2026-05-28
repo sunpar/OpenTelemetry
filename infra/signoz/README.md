@@ -12,13 +12,17 @@ publish SigNoz OTLP ingestion ports itself.
 Clone the upstream SigNoz deploy files under the ignored vendor directory:
 
 ```sh
-git clone -b main https://github.com/SigNoz/signoz.git .vendor/signoz
+git clone https://github.com/SigNoz/signoz.git .vendor/signoz
+git -C .vendor/signoz checkout a8f5bdf2562c35c2896a5a287552e124fa2c0037
 ```
 
-Start the official Docker stack:
+Start the official Docker stack with this repo's safety override:
 
 ```sh
-docker compose -f .vendor/signoz/deploy/docker/docker-compose.yaml up -d --remove-orphans
+docker compose \
+  -f .vendor/signoz/deploy/docker/docker-compose.yaml \
+  -f compose/docker-compose.signoz.override.yml \
+  up -d --remove-orphans
 ```
 
 Check this repo's wrapper contract:
@@ -28,7 +32,8 @@ docker compose -f compose/docker-compose.signoz.yml config
 ```
 
 After AOTEL-007 wires the Makefile, `make signoz-up` should run the same
-startup path or call a pinned equivalent.
+startup path or call an equivalent pinned to the same upstream revision and
+override file.
 
 ## UI Access
 
@@ -50,9 +55,10 @@ client -> Nginx auth ingress -> Collector gateway -> SigNoz
 ```
 
 The official SigNoz Docker stack may publish `4317` and `4318` for standalone
-use. For this product, keep those ports bound to localhost, firewalled, or
-removed by an override before team access. The gateway Collector should reach
-SigNoz over the Docker network using `signoz-otel-collector:4317`.
+use. This repo's `compose/docker-compose.signoz.override.yml` removes those host
+port bindings so the gateway Collector is the only supported ingestion path. The
+gateway Collector should reach SigNoz over the fixed `signoz-net` Docker network
+using `signoz-otel-collector:4317`.
 
 ## Retention Checks
 
@@ -71,7 +77,10 @@ any max-capture profile.
 Stop the upstream stack without deleting volumes:
 
 ```sh
-docker compose -f .vendor/signoz/deploy/docker/docker-compose.yaml down
+docker compose \
+  -f .vendor/signoz/deploy/docker/docker-compose.yaml \
+  -f compose/docker-compose.signoz.override.yml \
+  down
 ```
 
 Do not commit `.vendor/signoz`, ClickHouse data, SQLite files, tokens, or local
