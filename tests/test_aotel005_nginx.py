@@ -40,6 +40,7 @@ def test_nginx_auth_subrequest_preserves_original_payload():
     assert "proxy_pass http://auth_api/auth/verify;" in auth_block
     assert "proxy_pass_request_body off;" in auth_block
     assert 'proxy_set_header Content-Length "";' in auth_block
+    assert "proxy_set_header X-Original-Content-Length $http_content_length;" in auth_block
     assert "proxy_set_header Authorization $http_authorization;" in auth_block
     assert "proxy_set_header X-Original-URI $uri;" in auth_block
     assert "proxy_set_header X-Original-Method $request_method;" in auth_block
