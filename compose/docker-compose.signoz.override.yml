@@ -6,6 +6,12 @@ services:
       - "127.0.0.1:8080:8080"
 
   otel-collector:
+    # Run static config during local bootstrap; OpAMP needs an org id first.
+    command: !override
+      - -c
+      - |
+        /signoz-otel-collector migrate sync check &&
+        /signoz-otel-collector --config=/etc/otel-collector-config.yaml
     ports: !override []
 
 networks:

@@ -45,6 +45,34 @@ http://localhost:8080
 
 Keep UI access limited to localhost or an authenticated internal network.
 
+## First Org Setup
+
+SigNoz creates the first organization and first admin through the UI. For the
+local trial, keep this manual; do not script or commit the admin email,
+password, or session cookies.
+
+1. Start SigNoz with `make signoz-up`.
+2. Open `http://localhost:8080`.
+3. Complete the first admin setup in the browser.
+4. Use `Agent Telemetry Trial` as the default organization name.
+5. After login, import the dashboard JSON described below.
+
+## OpAMP Status
+
+Keep OpAMP out of the local SigNoz collector path for now. Run the collector
+from the static config managed by this repo and the pinned upstream Compose
+files. The safety override removes the upstream `--manager-config` and
+`--copy-path` arguments and starts the collector with:
+
+```text
+/signoz-otel-collector --config=/etc/otel-collector-config.yaml
+```
+
+This avoids the bootstrap failure mode where the manager path logs
+`cannot create agent without orgId` before the first SigNoz org exists. Revisit
+OpAMP when edge collectors need remote management. Until then, manage collector
+config through repo-owned Compose and Collector config updates.
+
 ## Private Ingestion
 
 Do not expose SigNoz OTLP ports to teammates. External telemetry must enter
@@ -74,13 +102,27 @@ any max-capture profile.
 
 ## Dashboard Import
 
-Starter dashboard JSON files live in:
+Dashboard JSON files live in:
 
 ```text
 infra/signoz/dashboards/
 ```
 
-The current files are starter contracts rather than finalized SigNoz exports:
+`agent-telemetry-collected-data.signoz.json` is the importable SigNoz dashboard
+for the local central collector. It uses the SigNoz UI dashboard schema, not the
+repo-local starter contract schema. Use manual import after the first admin and
+`Agent Telemetry Trial` organization exist:
+
+1. Open SigNoz at `http://localhost:8080`.
+2. Go to Dashboards.
+3. Choose Import JSON.
+4. Upload or paste `infra/signoz/dashboards/agent-telemetry-collected-data.signoz.json`.
+5. Confirm the dashboard title is `Agent Telemetry - Collected Data`.
+6. Run the smoke flow and verify the dashboard shows logs, spans, metrics,
+   smoke-test visibility, and ingest-health panels.
+
+The remaining files are repo-local starter contracts rather than SigNoz UI
+exports:
 
 - `team-usage.json`
 - `codex-overview.json`
@@ -88,14 +130,16 @@ The current files are starter contracts rather than finalized SigNoz exports:
 - `tool-usage.json`
 - `collector-health.json`
 
-Use manual import after the first live SigNoz instance confirms the dashboard
-schema expected by the installed version. Keep the user, team, tool, and
-capture-profile filters on tenant telemetry dashboards, and avoid default metric
-group-bys on session ids, branch names, command text, file paths, or full repo
-remotes.
+Keep the user, team, tool, service, and capture-profile filters on tenant
+telemetry dashboards. Avoid default metric group-bys on session ids, branch
+names, command text, file paths, or full repo remotes.
 
-`collector-health.json` is intentionally different. It targets Collector
-self-metrics such as `otelcol_exporter_send_failed_log_records`,
+The importable dashboard's ingest-health panel is service-scoped because
+Collector and gateway health logs may not carry user, team, tool, or
+capture-profile attributes.
+
+`collector-health.json` has a separate scope. It targets Collector self-metrics
+such as `otelcol_exporter_send_failed_log_records`,
 `otelcol_exporter_send_failed_spans`, and
 `otelcol_exporter_send_failed_metric_points` after those metrics are ingested
 into SigNoz. The current gateway Collector configs receive client OTLP
