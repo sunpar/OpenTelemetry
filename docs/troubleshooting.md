@@ -107,9 +107,13 @@ The smoke script expects these host ports to be closed:
 ```text
 127.0.0.1:4318
 127.0.0.1:4317
+<gateway-endpoint-host>:4318
+<gateway-endpoint-host>:4317
 ```
 
-If either port is reachable, a client may be able to bypass auth-api and Nginx.
+It also inspects Docker's published port table and fails when any running
+container publishes `4317` or `4318` to the host. If any direct OTLP port is
+reachable or published, a client may be able to bypass auth-api and Nginx.
 Checks:
 
 ```sh
@@ -124,6 +128,19 @@ Fixes:
 2. Keep Collector OTLP/HTTP exposed only on the Docker network.
 3. Keep SigNoz ingestion reachable only from the gateway Collector network.
 4. Re-run `make smoke TOKEN=<issued-token>`.
+
+## Smoke Test Passes But Spoofed Headers Need Confirmation
+
+The smoke script sends spoofed `X-Telemetry-*` and `X-Forwarded-For` headers on
+the valid log request, but it does not mark header overwrite as verified unless
+the final enriched resource attributes are inspected in SigNoz or another
+authoritative backend. After `make smoke`, check the smoke log in SigNoz and
+confirm:
+
+- `telemetry.user.email` matches the issued token owner, not the spoofed header
+- `telemetry.team.id` matches the issued token team, not the spoofed header
+- `telemetry.token.id` matches the issued token id, not the spoofed header
+- `telemetry.source.ip` does not equal the spoofed `X-Forwarded-For` value
 
 ## SigNoz Shows Data Without User Or Team
 

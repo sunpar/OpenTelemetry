@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import socket
+import subprocess
 import sys
 from pathlib import Path
 from urllib import error, request
@@ -11,7 +12,7 @@ from urllib.parse import urlsplit
 
 
 DEFAULT_SIGNAL_PATHS = ["/v1/logs", "/v1/traces", "/v1/metrics"]
-DEFAULT_DIRECT_PORTS = ["127.0.0.1:4318", "127.0.0.1:4317"]
+OTLP_DIRECT_PORTS = {4317, 4318}
 
 
 def _load_sender():
@@ -57,6 +58,14 @@ def parse_host_port(value: str) -> tuple[str, int]:
     return host, int(port_text)
 
 
+def default_direct_ports(endpoint: str) -> list[str]:
+    parts = urlsplit(endpoint)
+    hosts = ["127.0.0.1"]
+    if parts.hostname and parts.hostname not in {"127.0.0.1", "localhost"}:
+        hosts.insert(0, parts.hostname)
+    return [f"{host}:{port}" for host in hosts for port in sorted(OTLP_DIRECT_PORTS)]
+
+
 def assert_port_closed(host: str, port: int, timeout: float) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
@@ -90,18 +99,23 @@ def check_valid_log(endpoint: str, token: str, timeout: float) -> list[str]:
         "X-Telemetry-Capture-Profile": "max",
         "X-Forwarded-For": "203.0.113.250",
     }
-    status, body, url = SEND_TEST_LOG.send_log(
-        endpoint=endpoint,
-        token=token,
-        message="agent-otel smoke test log",
-        timeout=timeout,
-        extra_headers=spoofed_headers,
-    )
-    if 200 <= status < 300:
-        print(f"ok valid token accepted on /v1/logs: status={status}")
-        print("ok spoofed X-Telemetry-* headers were sent through ingress overwrite path")
-        return []
-    return [f"valid token rejected by {url}: status={status} body={body}"]
+    failures: list[str] = []
+    for path in DEFAULT_SIGNAL_PATHS:
+        status, body, url = SEND_TEST_LOG.send_signal(
+            endpoint=endpoint,
+            token=token,
+            signal_path=path,
+            timeout=timeout,
+            extra_headers=spoofed_headers if path == "/v1/logs" else None,
+        )
+        if 200 <= status < 300:
+            print(f"ok valid token accepted on {path}: status={status}")
+        else:
+            failures.append(f"valid token rejected by {url}: status={status} body={body}")
+
+    if not failures:
+        print("note spoofed headers were included on /v1/logs; verify final resource attributes in SigNoz")
+    return failures
 
 
 def check_direct_ports(values: list[str], timeout: float) -> list[str]:
@@ -117,6 +131,30 @@ def check_direct_ports(values: list[str], timeout: float) -> list[str]:
     return failures
 
 
+def check_docker_published_ports() -> list[str]:
+    result = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}} {{.Ports}}"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        return [f"could not inspect Docker-published ports: {result.stderr.strip()}"]
+
+    failures: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        name, _, ports = line.partition(" ")
+        for port in OTLP_DIRECT_PORTS:
+            if f":{port}->" in ports or f"{port}/tcp" in ports and "->" in ports:
+                failures.append(f"{name} publishes direct OTLP ingestion port {port}: {ports}")
+    if not failures:
+        print("ok Docker has no host-published direct OTLP ingestion ports")
+    return failures
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run local gateway smoke and security checks.")
     parser.add_argument("--endpoint", required=True, help="Gateway base URL, for example http://localhost:8088")
@@ -124,8 +162,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--invalid-token", default="invalid-token")
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--signal-path", action="append", default=list(DEFAULT_SIGNAL_PATHS))
-    parser.add_argument("--direct-port", action="append", default=list(DEFAULT_DIRECT_PORTS))
+    parser.add_argument("--direct-port", action="append", default=None)
     parser.add_argument("--skip-direct-port-check", action="store_true")
+    parser.add_argument("--skip-docker-port-check", action="store_true")
     return parser
 
 
@@ -134,7 +173,9 @@ def run(args: argparse.Namespace) -> int:
     failures.extend(check_invalid_tokens(args.endpoint, args.invalid_token, args.signal_path, args.timeout))
     failures.extend(check_valid_log(args.endpoint, args.token, args.timeout))
     if not args.skip_direct_port_check:
-        failures.extend(check_direct_ports(args.direct_port, args.timeout))
+        failures.extend(check_direct_ports(args.direct_port or default_direct_ports(args.endpoint), args.timeout))
+    if not args.skip_docker_port_check:
+        failures.extend(check_docker_published_ports())
 
     if failures:
         print("smoke checks failed:", file=sys.stderr)

@@ -57,13 +57,43 @@ def test_send_test_log_payload_contains_resource_and_agent_fields():
     assert record["severityText"] == "INFO"
 
 
+def test_send_test_log_payloads_cover_all_valid_signals():
+    sender = _load_script("scripts/send-test-log.py")
+
+    trace_payload = sender.build_trace_payload(
+        service_name="aotel-smoke",
+        agent_tool="custom",
+        run_mode="ci",
+    )
+    metric_payload = sender.build_metric_payload(
+        service_name="aotel-smoke",
+        agent_tool="custom",
+        run_mode="ci",
+    )
+
+    span = trace_payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    metric = metric_payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]
+
+    assert span["traceId"] == "00000000000000000000000000000001"
+    assert span["spanId"] == "0000000000000001"
+    assert metric["name"] == "agent_otel_smoke_metric"
+    assert metric["gauge"]["dataPoints"][0]["asDouble"] == 1.0
+
+
 def test_smoke_defaults_cover_auth_paths_and_direct_ports():
     smoke = _load_script("scripts/smoke-test-otel.py")
 
     args = smoke.build_parser().parse_args(["--endpoint", "http://localhost:8088", "--token", "TOKEN"])
 
     assert args.signal_path == ["/v1/logs", "/v1/traces", "/v1/metrics"]
-    assert args.direct_port == ["127.0.0.1:4318", "127.0.0.1:4317"]
+    assert args.direct_port is None
+    assert smoke.default_direct_ports("http://localhost:8088") == ["127.0.0.1:4317", "127.0.0.1:4318"]
+    assert smoke.default_direct_ports("http://10.0.0.5:8088") == [
+        "10.0.0.5:4317",
+        "10.0.0.5:4318",
+        "127.0.0.1:4317",
+        "127.0.0.1:4318",
+    ]
     assert args.invalid_token == "invalid-token"
 
 

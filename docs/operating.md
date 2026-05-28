@@ -95,11 +95,14 @@ It checks:
 
 - invalid bearer tokens return `401` on `/v1/logs`, `/v1/traces`, and
   `/v1/metrics`
-- a valid token can send a JSON OTLP test log through Nginx to the Collector
-- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are sent through the
-  ingress overwrite path
-- host ports `127.0.0.1:4318` and `127.0.0.1:4317` are not reachable as direct
-  ingestion paths
+- a valid token can send JSON OTLP test logs, traces, and metrics through
+  Nginx to the Collector
+- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are included on the
+  log smoke request so SigNoz can be checked for trusted resource attributes
+- the gateway endpoint host and loopback do not accept direct OTLP connections
+  on `4317` or `4318`
+- Docker is not publishing host ports for direct OTLP ingestion on `4317` or
+  `4318`
 
 To send only one test log:
 

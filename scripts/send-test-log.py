@@ -75,6 +75,93 @@ def build_log_payload(
     }
 
 
+def build_trace_payload(
+    *,
+    service_name: str,
+    agent_tool: str,
+    run_mode: str,
+) -> dict:
+    now = time.time_ns()
+    return {
+        "resourceSpans": [
+            {
+                "resource": {
+                    "attributes": [
+                        _string_attr("service.name", service_name),
+                        _string_attr("agent.tool", agent_tool),
+                        _string_attr("service.namespace", "agent-otel"),
+                    ],
+                },
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "agent-otel-trial.smoke", "version": "0.1.0"},
+                        "spans": [
+                            {
+                                "traceId": "00000000000000000000000000000001",
+                                "spanId": "0000000000000001",
+                                "name": "agent-otel smoke span",
+                                "kind": 1,
+                                "startTimeUnixNano": str(now),
+                                "endTimeUnixNano": str(now + 1_000_000),
+                                "attributes": [
+                                    _string_attr("run.mode", run_mode),
+                                    _string_attr("run.outcome", "success"),
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def build_metric_payload(
+    *,
+    service_name: str,
+    agent_tool: str,
+    run_mode: str,
+) -> dict:
+    now = str(time.time_ns())
+    return {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        _string_attr("service.name", service_name),
+                        _string_attr("agent.tool", agent_tool),
+                        _string_attr("service.namespace", "agent-otel"),
+                    ],
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {"name": "agent-otel-trial.smoke", "version": "0.1.0"},
+                        "metrics": [
+                            {
+                                "name": "agent_otel_smoke_metric",
+                                "description": "Agent OpenTelemetry smoke test metric",
+                                "unit": "1",
+                                "gauge": {
+                                    "dataPoints": [
+                                        {
+                                            "timeUnixNano": now,
+                                            "asDouble": 1.0,
+                                            "attributes": [
+                                                _string_attr("run.mode", run_mode),
+                                                _string_attr("run.outcome", "success"),
+                                            ],
+                                        }
+                                    ]
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+
 def post_json(url: str, payload: dict, headers: dict[str, str], timeout: float) -> tuple[int, str]:
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     request_headers = {
@@ -113,6 +200,43 @@ def send_log(
     if extra_headers:
         headers.update(extra_headers)
     status, body = post_json(url, payload, headers, timeout)
+    return status, body, url
+
+
+def send_signal(
+    *,
+    endpoint: str,
+    token: str,
+    signal_path: str,
+    timeout: float = 5.0,
+    extra_headers: dict[str, str] | None = None,
+) -> tuple[int, str, str]:
+    builders = {
+        "/v1/logs": lambda: build_log_payload(
+            message="agent-otel smoke test log",
+            service_name="aotel-smoke",
+            agent_tool="custom",
+            run_mode="ci",
+        ),
+        "/v1/traces": lambda: build_trace_payload(
+            service_name="aotel-smoke",
+            agent_tool="custom",
+            run_mode="ci",
+        ),
+        "/v1/metrics": lambda: build_metric_payload(
+            service_name="aotel-smoke",
+            agent_tool="custom",
+            run_mode="ci",
+        ),
+    }
+    if signal_path not in builders:
+        raise ValueError(f"unsupported OTLP signal path: {signal_path}")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    if extra_headers:
+        headers.update(extra_headers)
+    url = build_signal_url(endpoint, signal_path)
+    status, body = post_json(url, builders[signal_path](), headers, timeout)
     return status, body, url
 
 
