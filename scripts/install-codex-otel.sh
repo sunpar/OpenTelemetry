@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: install-codex-otel.sh --endpoint URL --token TOKEN [--profile normal|max]
+Usage: install-codex-otel.sh --endpoint URL --token TOKEN [--profile normal|max] [--trusted-capture-profile normal|max]
 
 Installs the managed Agent OpenTelemetry [otel] block into CODEX_HOME/config.toml.
 EOF
@@ -12,6 +12,7 @@ EOF
 endpoint=""
 token=""
 profile="normal"
+trusted_capture_profile=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --profile)
       profile="${2:-}"
+      shift 2
+      ;;
+    --trusted-capture-profile)
+      trusted_capture_profile="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -56,10 +61,23 @@ case "$profile" in
     log_user_prompt="false"
     ;;
   max)
+    if [[ "$trusted_capture_profile" != "max" ]]; then
+      printf '%s\n' 'Refusing --profile max without trusted token metadata capture_profile=max' >&2
+      exit 2
+    fi
     log_user_prompt="true"
     ;;
   *)
     printf 'Unsupported profile: %s\n' "$profile" >&2
+    exit 2
+    ;;
+esac
+
+case "$trusted_capture_profile" in
+  ""|normal|max)
+    ;;
+  *)
+    printf 'Unsupported trusted capture profile: %s\n' "$trusted_capture_profile" >&2
     exit 2
     ;;
 esac
@@ -89,6 +107,31 @@ output_tmp="$(mktemp)"
 trap 'rm -f "$existing_tmp" "$rendered_tmp" "$output_tmp"' EXIT
 
 if [[ -f "$config_path" ]]; then
+  if ! awk -v start="$start_marker" -v end="$end_marker" '
+    $0 == start {
+      if (in_block) {
+        bad = 1
+      }
+      in_block = 1
+      next
+    }
+    $0 == end {
+      if (!in_block) {
+        bad = 1
+      }
+      in_block = 0
+      next
+    }
+    END {
+      if (in_block || bad) {
+        exit 1
+      }
+    }
+  ' "$config_path"; then
+    printf '%s\n' 'Refusing to rewrite config with unmatched managed telemetry markers' >&2
+    exit 2
+  fi
+
   awk -v start="$start_marker" -v end="$end_marker" '
     $0 == start { skip = 1; next }
     $0 == end { skip = 0; next }
@@ -96,6 +139,11 @@ if [[ -f "$config_path" ]]; then
   ' "$config_path" > "$existing_tmp"
 else
   : > "$existing_tmp"
+fi
+
+if awk '/^[[:space:]]*\[otel(\]|\.)/ { found = 1 } END { exit found ? 0 : 1 }' "$existing_tmp"; then
+  printf '%s\n' 'Refusing to append managed telemetry block because an unmanaged [otel] table already exists' >&2
+  exit 2
 fi
 
 awk \

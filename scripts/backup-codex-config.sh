@@ -19,5 +19,9 @@ if [[ -e "$backup_path" ]]; then
   backup_path="${backup_path}.${suffix}"
 fi
 
-cp "$config_path" "$backup_path"
+(
+  umask 077
+  cp "$config_path" "$backup_path"
+)
+chmod 600 "$backup_path"
 printf '%s\n' "$backup_path"

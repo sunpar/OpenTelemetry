@@ -36,6 +36,7 @@ def test_backup_helper_creates_timestamped_copy(tmp_path):
     codex_home.mkdir()
     config = codex_home / "config.toml"
     config.write_text('model = "gpt-5"\n')
+    config.chmod(0o644)
 
     result = subprocess.run(
         ["bash", str(BACKUP)],
@@ -50,6 +51,7 @@ def test_backup_helper_creates_timestamped_copy(tmp_path):
     backup_path = Path(result.stdout.strip())
     assert re.match(r"config\.toml\.bak\.\d{14}$", backup_path.name)
     assert backup_path.read_text() == 'model = "gpt-5"\n'
+    assert backup_path.stat().st_mode & 0o777 == 0o600
 
 
 def test_installer_preserves_unrelated_config_and_creates_backup(tmp_path):
@@ -125,6 +127,125 @@ def test_installer_replaces_only_existing_managed_block(tmp_path):
     assert "tok_one" not in updated
     assert "http://two/v1/logs" in updated
     assert "tok_two" in updated
+
+
+def test_installer_refuses_max_profile_without_trusted_capture_metadata(tmp_path):
+    codex_home = tmp_path / "codex"
+    codex_home.mkdir()
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALLER),
+            "--endpoint",
+            "http://localhost:8088",
+            "--token",
+            "aotel_live_tok_abc_secret",
+            "--profile",
+            "max",
+        ],
+        check=False,
+        env={**os.environ, "CODEX_HOME": str(codex_home)},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 2
+    assert "trusted token metadata capture_profile=max" in result.stderr
+    assert not (codex_home / "config.toml").exists()
+
+
+def test_installer_accepts_max_profile_with_trusted_capture_metadata(tmp_path):
+    codex_home = tmp_path / "codex"
+    codex_home.mkdir()
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALLER),
+            "--endpoint",
+            "http://localhost:8088",
+            "--token",
+            "aotel_live_tok_abc_secret",
+            "--profile",
+            "max",
+            "--trusted-capture-profile",
+            "max",
+        ],
+        check=False,
+        env={**os.environ, "CODEX_HOME": str(codex_home)},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 0, result.stderr
+    updated = (codex_home / "config.toml").read_text()
+    assert "log_user_prompt = true" in updated
+
+
+def test_installer_refuses_unmanaged_otel_table(tmp_path):
+    codex_home = tmp_path / "codex"
+    codex_home.mkdir()
+    config = codex_home / "config.toml"
+    original = '[otel]\nenvironment = "manual"\n'
+    config.write_text(original)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALLER),
+            "--endpoint",
+            "http://localhost:8088",
+            "--token",
+            "aotel_live_tok_abc_secret",
+        ],
+        check=False,
+        env={**os.environ, "CODEX_HOME": str(codex_home)},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 2
+    assert "unmanaged [otel] table" in result.stderr
+    assert config.read_text() == original
+    assert len(list(codex_home.glob("config.toml.bak.*"))) == 1
+
+
+def test_installer_refuses_unmatched_managed_markers(tmp_path):
+    codex_home = tmp_path / "codex"
+    codex_home.mkdir()
+    config = codex_home / "config.toml"
+    original = (
+        'model = "gpt-5"\n'
+        "# >>> agent-otel managed codex telemetry\n"
+        '[otel]\nenvironment = "team-trial"\n'
+        'profile = "work"\n'
+    )
+    config.write_text(original)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALLER),
+            "--endpoint",
+            "http://localhost:8088",
+            "--token",
+            "aotel_live_tok_abc_secret",
+        ],
+        check=False,
+        env={**os.environ, "CODEX_HOME": str(codex_home)},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode == 2
+    assert "unmatched managed telemetry markers" in result.stderr
+    assert config.read_text() == original
+    assert len(list(codex_home.glob("config.toml.bak.*"))) == 1
 
 
 def test_codex_installer_scripts_are_parseable_shell():
