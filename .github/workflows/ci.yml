@@ -81,3 +81,6 @@ jobs:
 
       - name: Validate SigNoz wrapper compose
         run: docker compose -f compose/docker-compose.signoz.yml config
+
+      - name: Validate SigNoz upstream override compose
+        run: bash scripts/check-signoz-compose-config.sh

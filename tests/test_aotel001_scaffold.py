@@ -13,6 +13,12 @@ def test_makefile_defines_documented_entry_points():
 
     for target in [
         "help",
+        "install-dev",
+        "lint",
+        "test",
+        "static-check",
+        "compose-config",
+        "check",
         "signoz-up",
         "signoz-down",
         "up",
@@ -117,6 +123,7 @@ def test_make_help_runs_without_downstream_services():
 
     assert result.returncode == 0
     assert "Agent OpenTelemetry Trial" in result.stdout
+    assert "make check" in result.stdout
     assert "make signoz-down" in result.stdout
     assert result.stderr == ""
 
