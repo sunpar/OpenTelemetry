@@ -80,15 +80,14 @@ curl -i http://localhost:8088/v1/logs \
 Valid token path:
 
 ```sh
-make smoke TOKEN=<issued-token>
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 ```
 
 The smoke target runs:
 
 ```sh
-python3 scripts/smoke-test-otel.py \
-  --endpoint http://localhost:8088 \
-  --token <issued-token>
+AOTEL_SMOKE_TOKEN=<issued-token> \
+  python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088
 ```
 
 It checks:
@@ -111,6 +110,10 @@ python3 scripts/send-test-log.py \
   --endpoint http://localhost:8088 \
   --token <issued-token>
 ```
+
+For real issued tokens, prefer `AOTEL_SMOKE_TOKEN`, `--token-file`, or
+`--token-stdin` with `scripts/smoke-test-otel.py` so the token is not exposed in
+process listings or shell history.
 
 SigNoz must show a test log with:
 

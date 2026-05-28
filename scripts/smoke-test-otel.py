@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import socket
 import subprocess
 import sys
@@ -158,7 +159,10 @@ def check_docker_published_ports() -> list[str]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run local gateway smoke and security checks.")
     parser.add_argument("--endpoint", required=True, help="Gateway base URL, for example http://localhost:8088")
-    parser.add_argument("--token", required=True, help="Valid bearer token issued by otelctl")
+    parser.add_argument("--token", help="Valid bearer token issued by otelctl. Prefer --token-env, --token-file, or --token-stdin for real tokens.")
+    parser.add_argument("--token-env", default="AOTEL_SMOKE_TOKEN", help="Environment variable containing the valid bearer token")
+    parser.add_argument("--token-file", help="File containing the valid bearer token")
+    parser.add_argument("--token-stdin", action="store_true", help="Read the valid bearer token from stdin")
     parser.add_argument("--invalid-token", default="invalid-token")
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--signal-path", action="append", default=list(DEFAULT_SIGNAL_PATHS))
@@ -168,10 +172,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def read_token(args: argparse.Namespace) -> str:
+    explicit_sources = [bool(args.token), bool(args.token_file), bool(args.token_stdin)]
+    if sum(explicit_sources) > 1:
+        raise ValueError("provide exactly one token source: --token, --token-file, --token-stdin, or AOTEL_SMOKE_TOKEN")
+
+    if args.token:
+        return args.token.strip()
+    if args.token_file:
+        return Path(args.token_file).read_text().strip()
+    if args.token_stdin:
+        return sys.stdin.read().strip()
+    if not args.token_env or not os.environ.get(args.token_env):
+        raise ValueError("provide exactly one token source: --token, --token-file, --token-stdin, or AOTEL_SMOKE_TOKEN")
+    return os.environ[args.token_env].strip()
+
+
 def run(args: argparse.Namespace) -> int:
+    token = read_token(args)
     failures: list[str] = []
     failures.extend(check_invalid_tokens(args.endpoint, args.invalid_token, args.signal_path, args.timeout))
-    failures.extend(check_valid_log(args.endpoint, args.token, args.timeout))
+    failures.extend(check_valid_log(args.endpoint, token, args.timeout))
     if not args.skip_direct_port_check:
         failures.extend(check_direct_ports(args.direct_port or default_direct_ports(args.endpoint), args.timeout))
     if not args.skip_docker_port_check:

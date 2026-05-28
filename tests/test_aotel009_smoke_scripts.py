@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -83,7 +84,7 @@ def test_send_test_log_payloads_cover_all_valid_signals():
 def test_smoke_defaults_cover_auth_paths_and_direct_ports():
     smoke = _load_script("scripts/smoke-test-otel.py")
 
-    args = smoke.build_parser().parse_args(["--endpoint", "http://localhost:8088", "--token", "TOKEN"])
+    args = smoke.build_parser().parse_args(["--endpoint", "http://localhost:8088"])
 
     assert args.signal_path == ["/v1/logs", "/v1/traces", "/v1/metrics"]
     assert args.direct_port is None
@@ -97,11 +98,46 @@ def test_smoke_defaults_cover_auth_paths_and_direct_ports():
     assert args.invalid_token == "invalid-token"
 
 
+def test_smoke_token_sources_avoid_command_line_secrets(tmp_path, monkeypatch):
+    smoke = _load_script("scripts/smoke-test-otel.py")
+
+    monkeypatch.setenv("AOTEL_SMOKE_TOKEN", "TOKEN_FROM_ENV")
+    args = smoke.build_parser().parse_args(["--endpoint", "http://localhost:8088"])
+    assert smoke.read_token(args) == "TOKEN_FROM_ENV"
+
+    token_file = tmp_path / "token"
+    token_file.write_text("TOKEN_FROM_FILE\n")
+    args = smoke.build_parser().parse_args(
+        ["--endpoint", "http://localhost:8088", "--token-file", str(token_file)]
+    )
+    assert smoke.read_token(args) == "TOKEN_FROM_FILE"
+
+    with pytest.raises(ValueError, match="exactly one token source"):
+        args = smoke.build_parser().parse_args(
+            [
+                "--endpoint",
+                "http://localhost:8088",
+                "--token",
+                "TOKEN_FROM_ARG",
+                "--token-file",
+                str(token_file),
+            ]
+        )
+        smoke.read_token(args)
+
+
 def test_smoke_script_rejects_real_token_literals_in_repo():
-    for relative_path in ["scripts/smoke-test-otel.py", "scripts/send-test-log.py"]:
+    checked_paths = [
+        "scripts/smoke-test-otel.py",
+        "scripts/send-test-log.py",
+        "docs/operating.md",
+        "docs/troubleshooting.md",
+        "docs/agent-output/AOTEL-009.md",
+    ]
+    real_token = re.compile(r"aotel_live_tok_[0-9A-HJKMNPQRSTVWXYZ]{26}_[A-Za-z0-9_-]+")
+    for relative_path in checked_paths:
         text = (ROOT / relative_path).read_text()
-        assert "aotel_live_tok_" not in text
-        assert "Bearer <" not in text
+        assert real_token.search(text) is None
 
 
 def test_live_compose_smoke_script_is_opt_in():
@@ -116,10 +152,9 @@ def test_live_compose_smoke_script_is_opt_in():
             "scripts/smoke-test-otel.py",
             "--endpoint",
             endpoint,
-            "--token",
-            token,
         ],
         cwd=ROOT,
+        env={**os.environ, "AOTEL_SMOKE_TOKEN": token},
         check=False,
         text=True,
         stdout=subprocess.PIPE,

@@ -127,7 +127,7 @@ Fixes:
    overrides.
 2. Keep Collector OTLP/HTTP exposed only on the Docker network.
 3. Keep SigNoz ingestion reachable only from the gateway Collector network.
-4. Re-run `make smoke TOKEN=<issued-token>`.
+4. Re-run `AOTEL_SMOKE_TOKEN=<issued-token> make smoke`.
 
 ## Smoke Test Passes But Spoofed Headers Need Confirmation
 
