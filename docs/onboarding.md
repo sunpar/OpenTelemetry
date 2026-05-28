@@ -95,6 +95,7 @@ export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.yourcompany.com
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <TOKEN>"
+export OTEL_METRICS_INCLUDE_SESSION_ID=false
 ```
 
 Generate this as `templates/claude.env`.
@@ -112,8 +113,10 @@ export OTEL_LOG_TOOL_CONTENT=1
 export OTEL_LOG_RAW_API_BODIES=1
 ```
 
-Use max capture only for short forensic windows. Pair it with a short-lived
-token whose `capture_profile` is `max`.
+Use max capture only for short forensic windows. The token command or installer
+must render or accept this profile only when the trusted token metadata has
+`capture_profile=max`; it must refuse normal tokens so max-capture data cannot
+be mislabeled as `agent.capture.profile=normal`.
 
 ## Installer Requirements
 
@@ -130,6 +133,8 @@ token whose `capture_profile` is `max`.
 
 - Accept `--endpoint`, `--token`, and optional `--profile normal|max`.
 - Write a shell-compatible env file.
+- For `--profile max`, verify that the token's trusted `capture_profile` is
+  `max` before writing max-capture settings.
 - Avoid modifying shell startup files unless a flag explicitly asks for it.
 - Print the command to source the generated file.
 

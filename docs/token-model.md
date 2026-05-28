@@ -67,8 +67,27 @@ can replace SQLite without changing callers.
 7. Reject tokens whose user is disabled.
 8. Optionally validate that the requested signal path is allowed by token
    scopes.
-9. Update `last_seen_at` and write an `ingest_audit` row.
-10. Return `204` with identity headers.
+9. Read original request metadata forwarded by ingress, including the OTLP path,
+   content length, and source address.
+10. Update `last_seen_at` and write an `ingest_audit` row.
+11. Return `204` with identity headers.
+
+## Auth Subrequest Metadata
+
+Nginx `auth_request` calls `auth-api` on an internal URI. Ingress must forward
+the original OTLP request metadata so `auth-api` can enforce scopes and write
+accurate audit rows:
+
+```http
+X-Original-URI: /v1/traces
+X-Original-Method: POST
+X-Original-Content-Length: 1234
+X-Telemetry-Source-Ip: 203.0.113.10
+```
+
+`auth-api` must use the normalized `X-Original-URI` path for signal scope
+checks and `ingest_audit.path`. It must not audit `/_auth` as the requested
+telemetry path.
 
 ## Auth Response Headers
 
@@ -92,6 +111,7 @@ The first control-plane surface is `otelctl`, not a public admin UI.
 ```sh
 otelctl users add --email alice@example.com --team quant-dev --name "Alice"
 otelctl tokens issue --email alice@example.com --name "alice-mbp-codex" --expires 90d
+otelctl tokens issue --email alice@example.com --name "alice-forensics" --expires 3d --capture-profile max
 otelctl tokens list --email alice@example.com
 otelctl tokens revoke --token-id tok_01J...
 otelctl users disable --email alice@example.com

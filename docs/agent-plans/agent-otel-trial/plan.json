@@ -1,0 +1,787 @@
+{
+  "feature": {
+    "id": "agent-otel-trial",
+    "name": "Agent OpenTelemetry Trial",
+    "summary": "Authenticated OpenTelemetry gateway for Codex, Claude Code, and other agent telemetry with SigNoz as the v1 backend."
+  },
+  "source_documents": [
+    "README.md",
+    "docs/architecture.md",
+    "docs/token-model.md",
+    "docs/data-model.md",
+    "docs/onboarding.md",
+    "docs/operating.md",
+    "docs/storage-retention.md",
+    "docs/troubleshooting.md",
+    "docs/milestones.md",
+    "docs/agent-context/repo-map.md",
+    "docs/agent-context/test-commands.md",
+    "docs/agent-context/architecture-index.md"
+  ],
+  "assumptions": [
+    "Python and FastAPI are acceptable for auth-api.",
+    "SQLite is acceptable for the team-trial control-plane store.",
+    "Docker Compose is the local runtime.",
+    "SigNoz is the only v1 backend.",
+    "Normal onboarding remains content-minimal by default."
+  ],
+  "open_questions": [
+    "Choose exact Python packaging workflow before AOTEL-001 starts.",
+    "Choose whether SigNoz bootstrap wraps official Compose files or vendors a pinned copy.",
+    "Choose CI provider before CI implementation.",
+    "Choose production TLS boundary before production deployment work."
+  ],
+  "epics": [
+    {
+      "id": "E01",
+      "title": "Control plane",
+      "objective": "Implement users, tokens, auth verification, audit, and local operator CLI."
+    },
+    {
+      "id": "E02",
+      "title": "Gateway path",
+      "objective": "Implement authenticated OTLP ingress, Collector enrichment, and Compose wiring."
+    },
+    {
+      "id": "E03",
+      "title": "Backends and dashboards",
+      "objective": "Bootstrap SigNoz and starter dashboards without exposing unauthenticated ingestion."
+    },
+    {
+      "id": "E04",
+      "title": "Client onboarding",
+      "objective": "Generate safe Codex and Claude Code telemetry config with explicit max-capture overlays."
+    },
+    {
+      "id": "E05",
+      "title": "Validation and operations",
+      "objective": "Provide local commands, smoke tests, troubleshooting, and security checks."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "AOTEL-001",
+      "epic_id": "E05",
+      "wave": 1,
+      "title": "Project scaffold and developer ergonomics",
+      "branch": "codex/aotel-001-scaffold",
+      "objective": "Create the minimal repository scaffold needed for later Python services, CLI packages, local environment defaults, and Make targets.",
+      "non_goals": [
+        "Do not implement auth logic.",
+        "Do not start Compose services.",
+        "Do not add CI yet."
+      ],
+      "context_to_load": [
+        "README.md",
+        "docs/agent-context/repo-map.md",
+        "docs/milestones.md"
+      ],
+      "read_set": [
+        "README.md",
+        "docs/agent-context/repo-map.md",
+        "docs/agent-context/test-commands.md"
+      ],
+      "write_set": [
+        "Makefile",
+        ".env.example",
+        ".gitignore",
+        "services/auth-api/pyproject.toml",
+        "cli/otelctl/pyproject.toml",
+        "services/auth-api/src/__init__.py",
+        "cli/otelctl/src/__init__.py"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Create root command targets as placeholders wired to future files.",
+        "Create non-secret local environment example values.",
+        "Create Python package metadata for auth-api and otelctl.",
+        "Add ignores for local DBs, env files, caches, and SigNoz/vendor output."
+      ],
+      "tests_to_write_first": [
+        "A basic packaging/import test for each Python package once files exist."
+      ],
+      "verification_commands": [
+        "git diff --check",
+        "python -m pytest"
+      ],
+      "acceptance_criteria": [
+        "Root Makefile contains documented targets with clear failure messages for unimplemented dependencies.",
+        ".env.example contains no secrets.",
+        "Python package metadata exists for auth-api and otelctl.",
+        "Generated local artifacts are ignored."
+      ],
+      "review_focus": [
+        "No secrets or user-local paths.",
+        "No over-broad Make targets that claim functionality not implemented."
+      ],
+      "rollback_notes": "Remove scaffold files; no data migration required."
+    },
+    {
+      "id": "AOTEL-002",
+      "epic_id": "E01",
+      "wave": 2,
+      "title": "Auth storage and token primitives",
+      "branch": "codex/aotel-002-auth-storage",
+      "objective": "Implement SQLite schema, user/token models, token generation, hashing, parsing, revocation, expiry, scopes, capture profile, and audit helpers.",
+      "non_goals": [
+        "Do not implement HTTP routes.",
+        "Do not implement CLI UX."
+      ],
+      "context_to_load": [
+        "docs/token-model.md",
+        "docs/agent-context/architecture-index.md",
+        "docs/agent-plans/agent-otel-trial/acceptance-tests.md"
+      ],
+      "read_set": [
+        "services/auth-api/pyproject.toml",
+        "docs/token-model.md"
+      ],
+      "write_set": [
+        "services/auth-api/src/db.py",
+        "services/auth-api/src/models.py",
+        "services/auth-api/src/tokens.py",
+        "services/auth-api/migrations/",
+        "services/auth-api/tests/test_tokens.py",
+        "services/auth-api/tests/test_db.py"
+      ],
+      "dependencies": [
+        "AOTEL-001"
+      ],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Create schema migration matching docs/token-model.md.",
+        "Implement token id parsing and random secret generation.",
+        "Store only token hashes, prefixes, and last four characters.",
+        "Implement constant-time token verification helpers.",
+        "Implement audit insert helpers without request bodies."
+      ],
+      "tests_to_write_first": [
+        "Token format parse/generate tests.",
+        "Hash mismatch/revoked/expired/disabled-user tests.",
+        "Audit row creation test."
+      ],
+      "verification_commands": [
+        "git diff --check",
+        "python -m pytest services/auth-api/tests"
+      ],
+      "acceptance_criteria": [
+        "Schema includes users, tokens, and ingest_audit fields from docs.",
+        "Token secrets are never stored in plaintext.",
+        "Validation distinguishes accepted, revoked, expired, disabled-user, and hash-mismatch states.",
+        "capture_profile defaults to normal."
+      ],
+      "review_focus": [
+        "Secret handling.",
+        "Constant-time compare.",
+        "SQLite-to-Postgres portability."
+      ],
+      "rollback_notes": "Revert auth storage files and migration; no production data exists yet."
+    },
+    {
+      "id": "AOTEL-003",
+      "epic_id": "E01",
+      "wave": 3,
+      "title": "Auth API verification endpoint",
+      "branch": "codex/aotel-003-auth-api",
+      "objective": "Expose FastAPI verification endpoint that validates bearer tokens and returns trusted telemetry headers for Nginx auth_request.",
+      "non_goals": [
+        "Do not expose public admin endpoints.",
+        "Do not implement token issuance over HTTP."
+      ],
+      "context_to_load": [
+        "docs/token-model.md",
+        "docs/architecture.md",
+        "docs/troubleshooting.md"
+      ],
+      "read_set": [
+        "services/auth-api/src/db.py",
+        "services/auth-api/src/tokens.py",
+        "docs/token-model.md"
+      ],
+      "write_set": [
+        "services/auth-api/src/app.py",
+        "services/auth-api/src/settings.py",
+        "services/auth-api/Dockerfile",
+        "services/auth-api/tests/test_auth_api.py"
+      ],
+      "dependencies": [
+        "AOTEL-002"
+      ],
+      "parallel_conflicts": [
+        "AOTEL-004"
+      ],
+      "implementation_steps": [
+        "Add /auth/verify route for Nginx subrequests.",
+        "Return 204 and trusted headers on valid tokens.",
+        "Return 401 or 403 according to token failure mode.",
+        "Record ingest audit details when token id is parseable.",
+        "Add Dockerfile for Compose runtime."
+      ],
+      "tests_to_write_first": [
+        "Missing/malformed/unknown token returns 401.",
+        "Revoked/expired/disabled user returns 403.",
+        "Valid token returns trusted headers and 204."
+      ],
+      "verification_commands": [
+        "git diff --check",
+        "python -m pytest services/auth-api/tests"
+      ],
+      "acceptance_criteria": [
+        "Valid requests include X-Telemetry-User, X-Telemetry-Team, X-Telemetry-User-Id, X-Telemetry-Token-Id, and X-Telemetry-Capture-Profile.",
+        "No admin issuance endpoint is public.",
+        "Audit rows do not store request bodies."
+      ],
+      "review_focus": [
+        "HTTP status correctness.",
+        "Header names matching Nginx and Collector docs.",
+        "No public admin surface."
+      ],
+      "rollback_notes": "Revert auth API files; storage primitives remain usable by CLI."
+    },
+    {
+      "id": "AOTEL-004",
+      "epic_id": "E01",
+      "wave": 3,
+      "title": "otelctl user and token CLI",
+      "branch": "codex/aotel-004-otelctl",
+      "objective": "Implement local operator CLI for user creation, token issuance/list/revocation, and user disable.",
+      "non_goals": [
+        "Do not add a public admin UI.",
+        "Do not print token secrets after issuance."
+      ],
+      "context_to_load": [
+        "docs/token-model.md",
+        "docs/onboarding.md"
+      ],
+      "read_set": [
+        "services/auth-api/src/db.py",
+        "services/auth-api/src/tokens.py",
+        "cli/otelctl/pyproject.toml"
+      ],
+      "write_set": [
+        "cli/otelctl/src/otelctl.py",
+        "cli/otelctl/tests/test_otelctl.py"
+      ],
+      "dependencies": [
+        "AOTEL-002"
+      ],
+      "parallel_conflicts": [
+        "AOTEL-003"
+      ],
+      "implementation_steps": [
+        "Implement users add command.",
+        "Implement tokens issue/list/revoke commands.",
+        "Implement users disable command.",
+        "Print Codex and Claude Code snippets on issue.",
+        "Support expiry duration parsing."
+      ],
+      "tests_to_write_first": [
+        "CLI creates user and issues token.",
+        "Token secret appears only once.",
+        "Revoke and disable commands change validation outcomes."
+      ],
+      "verification_commands": [
+        "git diff --check",
+        "python -m pytest cli/otelctl/tests"
+      ],
+      "acceptance_criteria": [
+        "Commands match docs/token-model.md.",
+        "Token issue prints snippets from onboarding contract.",
+        "List output shows token prefix/last4 but not secret."
+      ],
+      "review_focus": [
+        "Secret redaction.",
+        "Exit codes and error messages.",
+        "DB path configuration."
+      ],
+      "rollback_notes": "Revert CLI files; auth storage remains."
+    },
+    {
+      "id": "AOTEL-005",
+      "epic_id": "E02",
+      "wave": 1,
+      "title": "Nginx authenticated OTLP ingress",
+      "branch": "codex/aotel-005-nginx-ingress",
+      "objective": "Add Nginx config for authenticated OTLP/HTTP ingress using auth_request and trusted telemetry headers.",
+      "non_goals": [
+        "Do not implement TLS automation.",
+        "Do not expose direct Collector or SigNoz ingestion."
+      ],
+      "context_to_load": [
+        "docs/architecture.md",
+        "docs/troubleshooting.md"
+      ],
+      "read_set": [
+        "docs/architecture.md",
+        "docs/troubleshooting.md"
+      ],
+      "write_set": [
+        "infra/nginx/nginx.conf",
+        "infra/nginx/README.md"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Allow only /v1/logs, /v1/traces, and /v1/metrics.",
+        "Add /_auth internal subrequest.",
+        "Overwrite X-Telemetry-* headers from auth-api responses.",
+        "Set trusted source IP header from socket or trusted proxy chain.",
+        "Return 404 for other paths and 200 for /healthz."
+      ],
+      "tests_to_write_first": [
+        "Config text test for allowed paths and auth_request.",
+        "Config text test that proxy_set_header overwrites trusted headers."
+      ],
+      "verification_commands": [
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Only documented OTLP paths proxy to Collector.",
+        "auth_request is required on every OTLP path.",
+        "Client-supplied identity headers cannot pass through."
+      ],
+      "review_focus": [
+        "Header trust boundary.",
+        "Payload preservation.",
+        "Path allowlist."
+      ],
+      "rollback_notes": "Remove infra/nginx files."
+    },
+    {
+      "id": "AOTEL-006",
+      "epic_id": "E02",
+      "wave": 1,
+      "title": "Collector gateway configuration",
+      "branch": "codex/aotel-006-collector-gateway",
+      "objective": "Add local and production Collector gateway configs with metadata enrichment, agent normalization, batching, queues, retry, and SigNoz export.",
+      "non_goals": [
+        "Do not add custom OTLP parsing.",
+        "Do not add a secondary warehouse exporter."
+      ],
+      "context_to_load": [
+        "docs/architecture.md",
+        "docs/data-model.md",
+        "docs/storage-retention.md"
+      ],
+      "read_set": [
+        "docs/architecture.md",
+        "docs/data-model.md"
+      ],
+      "write_set": [
+        "infra/otel/collector.local.yaml",
+        "infra/otel/collector.prod.yaml",
+        "infra/otel/processors/normalize-agent-fields.yaml"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Configure OTLP/HTTP receiver with include_metadata true.",
+        "Map trusted metadata headers to resource attributes.",
+        "Normalize agent.tool for Codex and Claude Code.",
+        "Configure memory limiter, batch processor, sending queue, retry, and debug exporter.",
+        "Keep SigNoz export internal."
+      ],
+      "tests_to_write_first": [
+        "YAML parse test.",
+        "Config assertion for include_metadata and trusted attributes.",
+        "Config assertion for sending queue and retry."
+      ],
+      "verification_commands": [
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Collector config includes all required telemetry.* attributes.",
+        "agent.capture.profile is copied from trusted metadata.",
+        "Exporter queue and retry are enabled."
+      ],
+      "review_focus": [
+        "Header metadata names.",
+        "Pipeline coverage for logs, traces, and metrics.",
+        "Resilience defaults."
+      ],
+      "rollback_notes": "Remove infra/otel files."
+    },
+    {
+      "id": "AOTEL-007",
+      "epic_id": "E02",
+      "wave": 4,
+      "title": "Gateway Compose stack and Make targets",
+      "branch": "codex/aotel-007-compose-gateway",
+      "objective": "Wire auth-api, Nginx, and Collector together with Compose and Make targets for local trial operations.",
+      "non_goals": [
+        "Do not expose SigNoz or Collector OTLP ports directly to host.",
+        "Do not implement production TLS."
+      ],
+      "context_to_load": [
+        "docs/architecture.md",
+        "docs/operating.md",
+        "docs/agent-context/test-commands.md"
+      ],
+      "read_set": [
+        "Makefile",
+        ".env.example",
+        "services/auth-api/Dockerfile",
+        "infra/nginx/nginx.conf",
+        "infra/otel/collector.local.yaml",
+        "compose/docker-compose.signoz.yml"
+      ],
+      "write_set": [
+        "compose/docker-compose.gateway.yml",
+        "Makefile",
+        ".env.example"
+      ],
+      "dependencies": [
+        "AOTEL-001",
+        "AOTEL-003",
+        "AOTEL-004",
+        "AOTEL-005",
+        "AOTEL-006",
+        "AOTEL-008"
+      ],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Define auth-api, nginx, and otel-collector services.",
+        "Join gateway services to the SigNoz network without publishing internal ingestion ports.",
+        "Wire Make targets: up, down, logs, user, token, smoke, signoz-up.",
+        "Document environment variables in .env.example."
+      ],
+      "tests_to_write_first": [
+        "Compose config validation.",
+        "Port exposure assertion for Collector and SigNoz ingestion."
+      ],
+      "verification_commands": [
+        "docker compose -f compose/docker-compose.gateway.yml config",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "make up starts gateway stack.",
+        "make user and make token execute otelctl in auth-api context.",
+        "Collector and SigNoz OTLP ports are not host-published."
+      ],
+      "review_focus": [
+        "Docker network boundaries.",
+        "No secret defaults.",
+        "Make target accuracy."
+      ],
+      "rollback_notes": "Revert Compose, Makefile, and env changes."
+    },
+    {
+      "id": "AOTEL-008",
+      "epic_id": "E03",
+      "wave": 1,
+      "title": "SigNoz bootstrap",
+      "branch": "codex/aotel-008-signoz-bootstrap",
+      "objective": "Add local SigNoz bootstrap files and documentation while keeping ingestion private to the gateway network.",
+      "non_goals": [
+        "Do not implement Kubernetes or Terraform.",
+        "Do not add a second warehouse."
+      ],
+      "context_to_load": [
+        "docs/architecture.md",
+        "docs/storage-retention.md",
+        "docs/operating.md"
+      ],
+      "read_set": [
+        "docs/storage-retention.md",
+        "docs/operating.md"
+      ],
+      "write_set": [
+        "compose/docker-compose.signoz.yml",
+        "infra/signoz/README.md"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Choose wrapper or pinned official SigNoz Compose strategy.",
+        "Document startup, shutdown, UI access, and retention checks.",
+        "Keep OTLP ingestion on internal networks only."
+      ],
+      "tests_to_write_first": [
+        "Compose config validation.",
+        "Port exposure assertion."
+      ],
+      "verification_commands": [
+        "docker compose -f compose/docker-compose.signoz.yml config",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "make signoz-up can start SigNoz after Makefile integration.",
+        "SigNoz UI access is documented.",
+        "SigNoz OTLP ingestion is not exposed to teammates."
+      ],
+      "review_focus": [
+        "Port exposure.",
+        "Retention guidance.",
+        "Avoiding vendor sprawl."
+      ],
+      "rollback_notes": "Remove SigNoz compose and docs."
+    },
+    {
+      "id": "AOTEL-009",
+      "epic_id": "E05",
+      "wave": 5,
+      "title": "Smoke and security verification scripts",
+      "branch": "codex/aotel-009-smoke-tests",
+      "objective": "Implement smoke scripts that send test telemetry and verify auth, header trust, source IP, and direct-ingestion protections.",
+      "non_goals": [
+        "Do not depend on production endpoints.",
+        "Do not store real tokens in repo."
+      ],
+      "context_to_load": [
+        "docs/milestones.md",
+        "docs/operating.md",
+        "docs/troubleshooting.md"
+      ],
+      "read_set": [
+        "compose/docker-compose.gateway.yml",
+        "Makefile",
+        "docs/milestones.md"
+      ],
+      "write_set": [
+        "scripts/smoke-test-otel.py",
+        "scripts/send-test-log.py",
+        "docs/operating.md",
+        "docs/troubleshooting.md"
+      ],
+      "dependencies": [
+        "AOTEL-007",
+        "AOTEL-010",
+        "AOTEL-011",
+        "AOTEL-012"
+      ],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Implement a minimal OTLP/HTTP test log sender.",
+        "Verify invalid token returns 401.",
+        "Verify all three OTLP signal paths require auth.",
+        "Verify spoofed X-Telemetry-* headers are overwritten.",
+        "Verify direct Collector and SigNoz OTLP host ports are unavailable.",
+        "Update operations docs with exact commands."
+      ],
+      "tests_to_write_first": [
+        "Unit tests for CLI flags and endpoint path construction.",
+        "Integration smoke test against local Compose stack."
+      ],
+      "verification_commands": [
+        "make smoke TOKEN=<issued-token>",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Milestone 1 acceptance criteria are executable.",
+        "Valid token reaches Collector/SigNoz.",
+        "Invalid token and direct-ingestion paths fail."
+      ],
+      "review_focus": [
+        "Security assertions.",
+        "No real tokens.",
+        "Clear failure output."
+      ],
+      "rollback_notes": "Remove smoke scripts and revert operations doc changes."
+    },
+    {
+      "id": "AOTEL-010",
+      "epic_id": "E04",
+      "wave": 1,
+      "title": "Codex onboarding generator",
+      "branch": "codex/aotel-010-codex-onboarding",
+      "objective": "Implement Codex config template and installer that backs up user config and applies content-minimal OTel settings.",
+      "non_goals": [
+        "Do not enable prompt capture by default.",
+        "Do not rewrite unrelated Codex settings."
+      ],
+      "context_to_load": [
+        "docs/onboarding.md",
+        "docs/storage-retention.md"
+      ],
+      "read_set": [
+        "docs/onboarding.md"
+      ],
+      "write_set": [
+        "templates/codex.config.toml",
+        "scripts/install-codex-otel.sh",
+        "scripts/backup-codex-config.sh"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Create parseable Codex TOML template.",
+        "Implement timestamped config backup helper.",
+        "Install or replace only the managed OTel block.",
+        "Support endpoint and token arguments.",
+        "Keep max-capture prompt logging as explicit overlay."
+      ],
+      "tests_to_write_first": [
+        "TOML template parse test.",
+        "Installer preserves unrelated config.",
+        "Installer creates timestamped backup."
+      ],
+      "verification_commands": [
+        "shellcheck scripts/install-codex-otel.sh scripts/backup-codex-config.sh",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Existing ~/.codex/config.toml is backed up.",
+        "Normal profile sets log_user_prompt=false.",
+        "Rendered TOML parses."
+      ],
+      "review_focus": [
+        "Config preservation.",
+        "Prompt logging defaults.",
+        "Token handling."
+      ],
+      "rollback_notes": "Remove Codex template and installer scripts."
+    },
+    {
+      "id": "AOTEL-011",
+      "epic_id": "E04",
+      "wave": 1,
+      "title": "Claude Code onboarding generator",
+      "branch": "codex/aotel-011-claude-onboarding",
+      "objective": "Implement Claude Code env templates and installer with content-minimal defaults and explicit max-capture profile.",
+      "non_goals": [
+        "Do not modify shell startup files by default.",
+        "Do not enable raw API body logging by default."
+      ],
+      "context_to_load": [
+        "docs/onboarding.md",
+        "docs/storage-retention.md"
+      ],
+      "read_set": [
+        "docs/onboarding.md"
+      ],
+      "write_set": [
+        "templates/claude.env",
+        "templates/claude.max-capture.env",
+        "scripts/install-claude-otel.sh"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Create normal Claude env template.",
+        "Create max-capture env overlay.",
+        "Implement installer that writes env file and prints source command.",
+        "Support endpoint, token, and profile arguments."
+      ],
+      "tests_to_write_first": [
+        "Shell syntax test for generated env.",
+        "Installer normal profile excludes prompt/tool/raw body capture.",
+        "Max profile includes explicit capture flags."
+      ],
+      "verification_commands": [
+        "shellcheck scripts/install-claude-otel.sh",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Normal env includes OTLP exporters and bearer auth.",
+        "Normal env excludes prompt/tool/raw body capture.",
+        "Max env includes explicit high-capture flags."
+      ],
+      "review_focus": [
+        "Safe defaults.",
+        "Shell compatibility.",
+        "No startup-file mutation by default."
+      ],
+      "rollback_notes": "Remove Claude templates and installer."
+    },
+    {
+      "id": "AOTEL-012",
+      "epic_id": "E03",
+      "wave": 1,
+      "title": "Starter SigNoz dashboards",
+      "branch": "codex/aotel-012-dashboards",
+      "objective": "Add initial SigNoz dashboard JSON stubs and import docs for team usage, Codex, Claude, tool usage, and Collector health.",
+      "non_goals": [
+        "Do not optimize queries before live data exists.",
+        "Do not group metrics by high-cardinality fields by default."
+      ],
+      "context_to_load": [
+        "docs/data-model.md",
+        "docs/storage-retention.md",
+        "docs/operating.md"
+      ],
+      "read_set": [
+        "docs/data-model.md",
+        "docs/storage-retention.md"
+      ],
+      "write_set": [
+        "infra/signoz/dashboards/codex-overview.json",
+        "infra/signoz/dashboards/claude-overview.json",
+        "infra/signoz/dashboards/team-usage.json",
+        "infra/signoz/dashboards/collector-health.json",
+        "infra/signoz/dashboards/tool-usage.json"
+      ],
+      "dependencies": [],
+      "parallel_conflicts": [],
+      "implementation_steps": [
+        "Create dashboard JSON files for documented starter set.",
+        "Use team/user/tool/model/capture filters.",
+        "Avoid session id, branch, command text, and file paths as default metric group-bys.",
+        "Document manual import limitations if SigNoz schema is not finalized."
+      ],
+      "tests_to_write_first": [
+        "JSON syntax validation.",
+        "Static scan for prohibited high-cardinality default group-bys."
+      ],
+      "verification_commands": [
+        "json validation",
+        "git diff --check"
+      ],
+      "acceptance_criteria": [
+        "Dashboard files exist for Codex, Claude, team usage, tool usage, and Collector health.",
+        "Dashboards include telemetry.user.email, telemetry.team.id, agent.tool, and agent.capture.profile filters.",
+        "Collector health dashboard includes exporter queue/failure indicators."
+      ],
+      "review_focus": [
+        "Cardinality safety.",
+        "Importability.",
+        "Alignment with data model docs."
+      ],
+      "rollback_notes": "Remove dashboard JSON files."
+    }
+  ],
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": [
+        "AOTEL-001",
+        "AOTEL-005",
+        "AOTEL-006",
+        "AOTEL-008",
+        "AOTEL-010",
+        "AOTEL-011",
+        "AOTEL-012"
+      ],
+      "parallel_safety": "Write sets are disjoint by exact file path; shared parent directories are creation-only."
+    },
+    {
+      "wave": 2,
+      "tasks": [
+        "AOTEL-002"
+      ],
+      "parallel_safety": "Single task wave."
+    },
+    {
+      "wave": 3,
+      "tasks": [
+        "AOTEL-003",
+        "AOTEL-004"
+      ],
+      "parallel_safety": "Both depend on auth storage but write API and CLI files separately."
+    },
+    {
+      "wave": 4,
+      "tasks": [
+        "AOTEL-007"
+      ],
+      "parallel_safety": "Single integration task after dependent service/config tasks."
+    },
+    {
+      "wave": 5,
+      "tasks": [
+        "AOTEL-009"
+      ],
+      "parallel_safety": "Final smoke/security verification after Compose and client artifacts exist."
+    }
+  ]
+}

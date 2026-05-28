@@ -29,7 +29,11 @@ Acceptance criteria:
 8. Direct Collector and SigNoz OTLP ingestion ports are not published to the
    host.
 9. Spoofed client `X-Telemetry-*` headers are overwritten by ingress.
-10. SigNoz shows a test log with:
+10. A smoke test sends a spoofed forwarding header and verifies
+   `telemetry.source.ip` is the ingress-derived address, not the spoofed client
+   value.
+11. SigNoz shows a test log, span, and metric from `/v1/logs`, `/v1/traces`,
+   and `/v1/metrics`, each with:
    - `telemetry.user.email`
    - `telemetry.team.id`
    - `telemetry.token.id`
@@ -68,6 +72,8 @@ Acceptance criteria:
 3. Tool details are visible when enabled.
 4. Tool content is visible when enabled.
 5. Raw API body capture is opt-in only.
+6. Max-capture env generation refuses tokens whose trusted
+   `capture_profile` is not `max`.
 
 ## Milestone 4: Storage Guardrails
 
