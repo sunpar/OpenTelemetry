@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from textwrap import dedent
 
 import yaml
 
@@ -10,11 +11,26 @@ OVERRIDE_FILE = ROOT / "compose/docker-compose.signoz.override.yml"
 COMPOSE_CHECK_SCRIPT = ROOT / "scripts/check-signoz-compose-config.sh"
 SIGNOZ_README = ROOT / "infra/signoz/README.md"
 UPSTREAM_REVISION = "a8f5bdf2562c35c2896a5a287552e124fa2c0037"
+SIGNOZ_NETWORK_NAME = "signoz-net"
+SIGNOZ_UI_BINDING = '"127.0.0.1:8080:8080"'
+OTLP_INGESTION_PORTS = ("4317", "4318")
+STATIC_COLLECTOR_CONFIG_ARG = "--config=/etc/otel-collector-config.yaml"
+OPAMP_COLLECTOR_ARGS = ("--manager-config", "--copy-path")
+UPSTREAM_OPAMP_COLLECTOR_COMMAND = (
+    f"/signoz-otel-collector {STATIC_COLLECTOR_CONFIG_ARG} "
+    f"{OPAMP_COLLECTOR_ARGS[0]}=/etc/manager-config.yaml "
+    f"{OPAMP_COLLECTOR_ARGS[1]}=/var/tmp/collector-config.yaml"
+)
 
 
-def test_signoz_compose_config_validates():
+def _compose_config(*compose_files: Path):
+    command = ["docker", "compose"]
+    for compose_file in compose_files:
+        command.extend(["-f", str(compose_file)])
+    command.append("config")
+
     result = subprocess.run(
-        ["docker", "compose", "-f", str(COMPOSE_FILE), "config"],
+        command,
         cwd=ROOT,
         check=False,
         text=True,
@@ -23,14 +39,24 @@ def test_signoz_compose_config_validates():
     )
 
     assert result.returncode == 0, result.stderr
-    config = yaml.safe_load(result.stdout)
+    return yaml.safe_load(result.stdout)
+
+
+def _assert_static_collector_config_without_opamp(command_text: str):
+    assert STATIC_COLLECTOR_CONFIG_ARG in command_text
+    for opamp_arg in OPAMP_COLLECTOR_ARGS:
+        assert opamp_arg not in command_text
+
+
+def test_signoz_compose_config_validates():
+    config = _compose_config(COMPOSE_FILE)
     assert config["name"] == "agent-otel-signoz"
 
 
 def test_signoz_compose_declares_private_gateway_network_contract():
     compose = yaml.safe_load(COMPOSE_FILE.read_text())
 
-    assert compose["networks"]["signoz-net"]["name"] == "signoz-net"
+    assert compose["networks"][SIGNOZ_NETWORK_NAME]["name"] == SIGNOZ_NETWORK_NAME
     assert compose["x-agent-otel-signoz"]["strategy"] == "official-compose-wrapper"
     assert "https://github.com/SigNoz/signoz.git" in compose["x-agent-otel-signoz"]["upstream"]
     assert compose["x-agent-otel-signoz"]["upstream_revision"] == UPSTREAM_REVISION
@@ -43,58 +69,54 @@ def test_signoz_compose_does_not_publish_otlp_ingestion_ports():
     for service in compose.get("services", {}).values():
         for port in service.get("ports", []) or []:
             rendered = str(port)
-            assert "4317" not in rendered
-            assert "4318" not in rendered
+            for ingestion_port in OTLP_INGESTION_PORTS:
+                assert ingestion_port not in rendered
 
 
 def test_signoz_override_binds_ui_and_removes_host_ingestion_ports():
     override = OVERRIDE_FILE.read_text()
 
-    assert '"127.0.0.1:8080:8080"' in override
+    assert SIGNOZ_UI_BINDING in override
     assert "ports: !override []" in override
-    assert "name: signoz-net" in override
+    assert "command: !override" in override
+    _assert_static_collector_config_without_opamp(override)
+    assert f"name: {SIGNOZ_NETWORK_NAME}" in override
     assert "${SIGNOZ_NETWORK" not in override
 
 
 def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
     upstream = tmp_path / "upstream-signoz.yml"
     upstream.write_text(
-        "\n".join(
-            [
-                "name: upstream-signoz",
-                "services:",
-                "  signoz:",
-                "    image: busybox",
-                "    networks:",
-                "      - signoz-net",
-                "    ports:",
-                '      - "8080:8080"',
-                "  otel-collector:",
-                "    image: busybox",
-                "    networks:",
-                "      - signoz-net",
-                "    ports:",
-                '      - "4317:4317"',
-                '      - "4318:4318"',
-                "networks:",
-                "  signoz-net:",
-                "    name: signoz-net",
-                "",
-            ]
+        dedent(
+            f"""\
+            name: upstream-signoz
+            services:
+              signoz:
+                image: busybox
+                networks:
+                  - {SIGNOZ_NETWORK_NAME}
+                ports:
+                  - "8080:8080"
+              otel-collector:
+                image: busybox
+                command:
+                  - -c
+                  - |
+                    /signoz-otel-collector migrate sync check &&
+                    {UPSTREAM_OPAMP_COLLECTOR_COMMAND}
+                networks:
+                  - {SIGNOZ_NETWORK_NAME}
+                ports:
+                  - "4317:4317"
+                  - "4318:4318"
+            networks:
+              {SIGNOZ_NETWORK_NAME}:
+                name: {SIGNOZ_NETWORK_NAME}
+            """
         )
     )
 
-    result = subprocess.run(
-        ["docker", "compose", "-f", str(upstream), "-f", str(OVERRIDE_FILE), "config"],
-        cwd=ROOT,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
-    assert result.returncode == 0, result.stderr
-    config = yaml.safe_load(result.stdout)
+    config = _compose_config(upstream, OVERRIDE_FILE)
     assert config["services"]["signoz"]["ports"] == [
         {
             "mode": "ingress",
@@ -105,7 +127,9 @@ def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
         }
     ]
     assert "ports" not in config["services"]["otel-collector"]
-    assert "signoz-net" in config["services"]["otel-collector"]["networks"]
+    assert SIGNOZ_NETWORK_NAME in config["services"]["otel-collector"]["networks"]
+    collector_command = "\n".join(config["services"]["otel-collector"]["command"])
+    _assert_static_collector_config_without_opamp(collector_command)
 
 
 def test_signoz_compose_check_script_validates_override_stack(tmp_path, monkeypatch):

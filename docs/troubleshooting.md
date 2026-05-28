@@ -100,6 +100,50 @@ docker compose -f compose/docker-compose.gateway.yml ps
 
 Inspect Collector health metrics and exporter logs.
 
+## SigNoz Collector Logs OpAMP Agent Errors
+
+If `signoz-otel-collector` logs `cannot create agent without orgId`, the
+collector is running through the OpAMP manager path before SigNoz has an
+organization id. The local central collector does not start OpAMP manager mode.
+
+Checks:
+
+```sh
+docker compose \
+  -f .vendor/signoz/deploy/docker/docker-compose.yaml \
+  -f compose/docker-compose.signoz.override.yml \
+  config | grep -E -- '--manager-config|--copy-path|--config=/etc/otel-collector-config.yaml'
+docker logs signoz-otel-collector 2>&1 | grep -i opamp
+```
+
+Fix:
+
+1. Keep `compose/docker-compose.signoz.override.yml` in the stack and recreate
+   the SigNoz collector container.
+2. Confirm the effective collector command uses
+   `--config=/etc/otel-collector-config.yaml`.
+3. Confirm `--manager-config` and `--copy-path` are absent.
+4. Complete first admin and `Agent Telemetry Trial` org setup in the UI.
+5. See `infra/signoz/README.md` for the current OpAMP status.
+
+## Dashboard Import Does Not Show Data
+
+Import `infra/signoz/dashboards/agent-telemetry-collected-data.signoz.json`
+only after the first SigNoz admin and organization exist. The dashboard title
+is `Agent Telemetry - Collected Data`.
+
+Checks:
+
+```sh
+.venv/bin/python -m json.tool infra/signoz/dashboards/agent-telemetry-collected-data.signoz.json >/dev/null
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
+```
+
+Then open the dashboard in SigNoz and check the service, user, team, tool, and
+capture-profile variables. If panels are empty, confirm the smoke records exist
+in ClickHouse and select `unknown` for older data that predates normalized agent
+attributes.
+
 ## Smoke Test Reports Direct Ingestion Port Is Reachable
 
 The smoke script expects these host ports to be closed:

@@ -1,0 +1,654 @@
+{
+  "description": "Importable SigNoz dashboard for gateway-collected agent telemetry: logs, spans, metrics, identity dimensions, smoke-test data, and ingest-health signals.",
+  "layout": [
+    {
+      "h": 6,
+      "i": "logs-received-over-time",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 6,
+      "i": "spans-received-over-time",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 4,
+      "y": 0
+    },
+    {
+      "h": 6,
+      "i": "metrics-received-over-time",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 8,
+      "y": 0
+    },
+    {
+      "h": 7,
+      "i": "events-by-tool",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 0,
+      "y": 6
+    },
+    {
+      "h": 7,
+      "i": "events-by-user",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 4,
+      "y": 6
+    },
+    {
+      "h": 7,
+      "i": "events-by-team",
+      "moved": false,
+      "static": false,
+      "w": 4,
+      "x": 8,
+      "y": 6
+    },
+    {
+      "h": 8,
+      "i": "latest-telemetry-records",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 13
+    },
+    {
+      "h": 8,
+      "i": "latest-traces",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 13
+    },
+    {
+      "h": 6,
+      "i": "smoke-test-visibility",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 0,
+      "y": 21
+    },
+    {
+      "h": 6,
+      "i": "ingest-health",
+      "moved": false,
+      "static": false,
+      "w": 6,
+      "x": 6,
+      "y": 21
+    }
+  ],
+  "panelMap": {},
+  "tags": [
+    "agent-otel",
+    "central-collector",
+    "gateway"
+  ],
+  "title": "Agent Telemetry - Collected Data",
+  "variables": {
+    "service-name": {
+      "allSelected": true,
+      "customValue": "",
+      "description": "Service name reported by logs, traces, or metrics.",
+      "id": "service-name",
+      "key": "service-name",
+      "modificationUUID": "service-name",
+      "multiSelect": true,
+      "name": "service.name",
+      "order": 0,
+      "queryValue": "SELECT DISTINCT value AS `service.name` FROM (SELECT coalesce(nullIf(resources_string['service.name'], ''), 'unknown') AS value FROM signoz_logs.distributed_logs_v2 UNION ALL SELECT coalesce(nullIf(resources_string['service.name'], ''), 'unknown') AS value FROM signoz_traces.distributed_signoz_index_v3 UNION ALL SELECT coalesce(nullIf(resource_attrs['service.name'], ''), 'unknown') AS value FROM signoz_metrics.distributed_time_series_v4_1day) WHERE value != '' ORDER BY value",
+      "showALLOption": true,
+      "sort": "ASC",
+      "textboxValue": "",
+      "type": "QUERY"
+    },
+    "telemetry-user-email": {
+      "allSelected": true,
+      "customValue": "",
+      "description": "Authenticated telemetry user email.",
+      "id": "telemetry-user-email",
+      "key": "telemetry-user-email",
+      "modificationUUID": "telemetry-user-email",
+      "multiSelect": true,
+      "name": "telemetry.user.email",
+      "order": 1,
+      "queryValue": "SELECT DISTINCT value AS `telemetry.user.email` FROM (SELECT coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS value FROM signoz_logs.distributed_logs_v2 UNION ALL SELECT coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS value FROM signoz_traces.distributed_signoz_index_v3 UNION ALL SELECT coalesce(nullIf(resource_attrs['telemetry.user.email'], ''), 'unknown') AS value FROM signoz_metrics.distributed_time_series_v4_1day) WHERE value != '' ORDER BY value",
+      "showALLOption": true,
+      "sort": "ASC",
+      "textboxValue": "",
+      "type": "QUERY"
+    },
+    "telemetry-team-id": {
+      "allSelected": true,
+      "customValue": "",
+      "description": "Authenticated team id.",
+      "id": "telemetry-team-id",
+      "key": "telemetry-team-id",
+      "modificationUUID": "telemetry-team-id",
+      "multiSelect": true,
+      "name": "telemetry.team.id",
+      "order": 2,
+      "queryValue": "SELECT DISTINCT value AS `telemetry.team.id` FROM (SELECT coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS value FROM signoz_logs.distributed_logs_v2 UNION ALL SELECT coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS value FROM signoz_traces.distributed_signoz_index_v3 UNION ALL SELECT coalesce(nullIf(resource_attrs['telemetry.team.id'], ''), 'unknown') AS value FROM signoz_metrics.distributed_time_series_v4_1day) WHERE value != '' ORDER BY value",
+      "showALLOption": true,
+      "sort": "ASC",
+      "textboxValue": "",
+      "type": "QUERY"
+    },
+    "agent-tool": {
+      "allSelected": true,
+      "customValue": "",
+      "description": "Normalized agent tool.",
+      "id": "agent-tool",
+      "key": "agent-tool",
+      "modificationUUID": "agent-tool",
+      "multiSelect": true,
+      "name": "agent.tool",
+      "order": 3,
+      "queryValue": "SELECT DISTINCT value AS `agent.tool` FROM (SELECT coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS value FROM signoz_logs.distributed_logs_v2 UNION ALL SELECT coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS value FROM signoz_traces.distributed_signoz_index_v3 UNION ALL SELECT coalesce(nullIf(resource_attrs['agent.tool'], ''), 'unknown') AS value FROM signoz_metrics.distributed_time_series_v4_1day UNION ALL SELECT 'codex' UNION ALL SELECT 'claude_code' UNION ALL SELECT 'cursor' UNION ALL SELECT 'custom' UNION ALL SELECT 'unknown') WHERE value != '' ORDER BY value",
+      "showALLOption": true,
+      "sort": "ASC",
+      "textboxValue": "",
+      "type": "QUERY"
+    },
+    "agent-capture-profile": {
+      "allSelected": true,
+      "customValue": "",
+      "description": "Trusted capture profile from auth metadata.",
+      "id": "agent-capture-profile",
+      "key": "agent-capture-profile",
+      "modificationUUID": "agent-capture-profile",
+      "multiSelect": true,
+      "name": "agent.capture.profile",
+      "order": 4,
+      "queryValue": "SELECT DISTINCT value AS `agent.capture.profile` FROM (SELECT coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') AS value FROM signoz_logs.distributed_logs_v2 UNION ALL SELECT coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') AS value FROM signoz_traces.distributed_signoz_index_v3 UNION ALL SELECT coalesce(nullIf(resource_attrs['agent.capture.profile'], ''), 'unknown') AS value FROM signoz_metrics.distributed_time_series_v4_1day UNION ALL SELECT 'normal' UNION ALL SELECT 'max' UNION ALL SELECT 'unknown') WHERE value != '' ORDER BY value",
+      "showALLOption": true,
+      "sort": "ASC",
+      "textboxValue": "",
+      "type": "QUERY"
+    }
+  },
+  "version": "v5",
+  "widgets": [
+    {
+      "id": "logs-received-over-time",
+      "title": "Logs Received Over Time",
+      "description": "Log records collected through the gateway over the selected time range.",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-logs-received-over-time",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Logs",
+            "disabled": false,
+            "query": "SELECT toStartOfInterval(fromUnixTimestamp64Nano(timestamp), INTERVAL 5 MINUTE) AS ts, count() AS value FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY ts ORDER BY ts"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "spans-received-over-time",
+      "title": "Spans Received Over Time",
+      "description": "Trace spans collected through the gateway over the selected time range.",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-spans-received-over-time",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Spans",
+            "disabled": false,
+            "query": "SELECT toStartOfInterval(timestamp, INTERVAL 5 MINUTE) AS ts, count() AS value FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY ts ORDER BY ts"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "metrics-received-over-time",
+      "title": "Metrics Received Over Time",
+      "description": "Metric points collected through the gateway over the selected time range.",
+      "panelTypes": "graph",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-metrics-received-over-time",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Metric points",
+            "disabled": false,
+            "query": "SELECT toStartOfInterval(toDateTime(intDiv(points.unix_milli, 1000)), INTERVAL 5 MINUTE) AS ts, count() AS value FROM signoz_metrics.distributed_samples_v4 AS points INNER JOIN (SELECT fingerprint, resource_attrs FROM signoz_metrics.distributed_time_series_v4_1day WHERE unix_milli BETWEEN ({{.start_timestamp}} - 86400) * 1000 AND {{.end_timestamp}} * 1000 GROUP BY fingerprint, resource_attrs) AS series USING fingerprint WHERE points.unix_milli BETWEEN {{.start_timestamp}} * 1000 AND {{.end_timestamp}} * 1000 AND coalesce(nullIf(series.resource_attrs['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(series.resource_attrs['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY ts ORDER BY ts"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "events-by-tool",
+      "title": "Events By Tool",
+      "description": "Collected logs, spans, and metric points grouped by normalized agent tool.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-events-by-tool",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Events",
+            "disabled": false,
+            "query": "SELECT dimension AS `agent.tool`, sum(logs) AS logs, sum(spans) AS spans, sum(metric_points) AS metric_points, sum(total) AS value FROM (SELECT coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS dimension, count() AS logs, 0 AS spans, 0 AS metric_points, count() AS total FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS dimension, 0 AS logs, count() AS spans, 0 AS metric_points, count() AS total FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') AS dimension, 0 AS logs, 0 AS spans, count() AS metric_points, count() AS total FROM signoz_metrics.distributed_samples_v4 AS points INNER JOIN (SELECT fingerprint, resource_attrs FROM signoz_metrics.distributed_time_series_v4_1day WHERE unix_milli BETWEEN ({{.start_timestamp}} - 86400) * 1000 AND {{.end_timestamp}} * 1000 GROUP BY fingerprint, resource_attrs) AS series USING fingerprint WHERE points.unix_milli BETWEEN {{.start_timestamp}} * 1000 AND {{.end_timestamp}} * 1000 AND coalesce(nullIf(series.resource_attrs['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(series.resource_attrs['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension) GROUP BY dimension ORDER BY value DESC LIMIT 20"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "events-by-user",
+      "title": "Events By User",
+      "description": "Collected logs, spans, and metric points grouped by authenticated user email.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-events-by-user",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Events",
+            "disabled": false,
+            "query": "SELECT dimension AS `telemetry.user.email`, sum(logs) AS logs, sum(spans) AS spans, sum(metric_points) AS metric_points, sum(total) AS value FROM (SELECT coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS dimension, count() AS logs, 0 AS spans, 0 AS metric_points, count() AS total FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS dimension, 0 AS logs, count() AS spans, 0 AS metric_points, count() AS total FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') AS dimension, 0 AS logs, 0 AS spans, count() AS metric_points, count() AS total FROM signoz_metrics.distributed_samples_v4 AS points INNER JOIN (SELECT fingerprint, resource_attrs FROM signoz_metrics.distributed_time_series_v4_1day WHERE unix_milli BETWEEN ({{.start_timestamp}} - 86400) * 1000 AND {{.end_timestamp}} * 1000 GROUP BY fingerprint, resource_attrs) AS series USING fingerprint WHERE points.unix_milli BETWEEN {{.start_timestamp}} * 1000 AND {{.end_timestamp}} * 1000 AND coalesce(nullIf(series.resource_attrs['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(series.resource_attrs['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension) GROUP BY dimension ORDER BY value DESC LIMIT 20"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "events-by-team",
+      "title": "Events By Team",
+      "description": "Collected logs, spans, and metric points grouped by team id.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-events-by-team",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Events",
+            "disabled": false,
+            "query": "SELECT dimension AS `telemetry.team.id`, sum(logs) AS logs, sum(spans) AS spans, sum(metric_points) AS metric_points, sum(total) AS value FROM (SELECT coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS dimension, count() AS logs, 0 AS spans, 0 AS metric_points, count() AS total FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS dimension, 0 AS logs, count() AS spans, 0 AS metric_points, count() AS total FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension UNION ALL SELECT coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') AS dimension, 0 AS logs, 0 AS spans, count() AS metric_points, count() AS total FROM signoz_metrics.distributed_samples_v4 AS points INNER JOIN (SELECT fingerprint, resource_attrs FROM signoz_metrics.distributed_time_series_v4_1day WHERE unix_milli BETWEEN ({{.start_timestamp}} - 86400) * 1000 AND {{.end_timestamp}} * 1000 GROUP BY fingerprint, resource_attrs) AS series USING fingerprint WHERE points.unix_milli BETWEEN {{.start_timestamp}} * 1000 AND {{.end_timestamp}} * 1000 AND coalesce(nullIf(series.resource_attrs['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(series.resource_attrs['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} GROUP BY dimension) GROUP BY dimension ORDER BY value DESC LIMIT 20"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "latest-telemetry-records",
+      "title": "Latest Telemetry Records",
+      "description": "Most recent log records with trusted identity and collection dimensions.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "none",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": [
+        {
+          "dataType": "",
+          "fieldContext": "log",
+          "fieldDataType": "",
+          "isIndexed": false,
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "dataType": "",
+          "fieldContext": "log",
+          "fieldDataType": "",
+          "isIndexed": false,
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "dataType": "string",
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "isIndexed": false,
+          "name": "service.name",
+          "signal": "logs",
+          "type": "resource"
+        }
+      ],
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-latest-telemetry-records",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Latest logs",
+            "disabled": false,
+            "query": "SELECT fromUnixTimestamp64Nano(timestamp) AS time, severity_text AS severity, body, coalesce(nullIf(resources_string['service.name'], ''), 'unknown') AS service, coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS user, coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS team, coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS tool, coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') AS profile FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} ORDER BY timestamp DESC LIMIT 100"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "latest-traces",
+      "title": "Latest Traces",
+      "description": "Most recent spans with trusted identity and collection dimensions.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "none",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "query": {
+        "id": "query-latest-traces",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Latest spans",
+            "disabled": false,
+            "query": "SELECT timestamp AS time, name, duration_nano, trace_id, span_id, coalesce(nullIf(resources_string['service.name'], ''), 'unknown') AS service, coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') AS user, coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') AS team, coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') AS tool, coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') AS profile FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} ORDER BY timestamp DESC LIMIT 100"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "smoke-test-visibility",
+      "title": "Smoke Test Visibility",
+      "description": "Counts aotel-smoke logs, spans, and metric points across signals.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-smoke-test-visibility",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Smoke signals",
+            "disabled": false,
+            "query": "SELECT 'logs' AS signal, count() AS value FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} AND (positionCaseInsensitive(body, 'aotel-smoke') > 0 OR positionCaseInsensitive(attributes_string['event.name'], 'aotel-smoke') > 0 OR positionCaseInsensitive(attributes_string['test.name'], 'aotel-smoke') > 0) UNION ALL SELECT 'spans' AS signal, count() AS value FROM signoz_traces.distributed_signoz_index_v3 WHERE timestamp BETWEEN fromUnixTimestamp64Nano({{.start_timestamp_nano}}) AND fromUnixTimestamp64Nano({{.end_timestamp_nano}}) AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(resources_string['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(resources_string['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(resources_string['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(resources_string['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} AND (positionCaseInsensitive(name, 'aotel-smoke') > 0 OR positionCaseInsensitive(attributes_string['event.name'], 'aotel-smoke') > 0 OR positionCaseInsensitive(attributes_string['test.name'], 'aotel-smoke') > 0) UNION ALL SELECT 'metrics' AS signal, count() AS value FROM signoz_metrics.distributed_samples_v4 AS points INNER JOIN (SELECT fingerprint, resource_attrs, metric_name FROM signoz_metrics.distributed_time_series_v4_1day WHERE unix_milli BETWEEN ({{.start_timestamp}} - 86400) * 1000 AND {{.end_timestamp}} * 1000 GROUP BY fingerprint, resource_attrs, metric_name) AS series USING fingerprint WHERE points.unix_milli BETWEEN {{.start_timestamp}} * 1000 AND {{.end_timestamp}} * 1000 AND coalesce(nullIf(series.resource_attrs['service.name'], ''), 'unknown') IN {{.service.name}} AND coalesce(nullIf(series.resource_attrs['telemetry.user.email'], ''), 'unknown') IN {{.telemetry.user.email}} AND coalesce(nullIf(series.resource_attrs['telemetry.team.id'], ''), 'unknown') IN {{.telemetry.team.id}} AND coalesce(nullIf(series.resource_attrs['agent.tool'], ''), 'unknown') IN {{.agent.tool}} AND coalesce(nullIf(series.resource_attrs['agent.capture.profile'], ''), 'unknown') IN {{.agent.capture.profile}} AND positionCaseInsensitive(series.metric_name, 'aotel') > 0"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    },
+    {
+      "id": "ingest-health",
+      "title": "Ingest Health",
+      "description": "Service-scoped collector and gateway error/refusal/drop signals. Filters only by service because health logs may not carry tenant attributes.",
+      "panelTypes": "table",
+      "opacity": "1",
+      "nullZeroValues": "zero",
+      "timePreferance": "GLOBAL_TIME",
+      "yAxisUnit": "count",
+      "softMin": null,
+      "softMax": null,
+      "thresholds": [],
+      "fillSpans": false,
+      "selectedLogFields": null,
+      "selectedTracesFields": null,
+      "query": {
+        "id": "query-ingest-health",
+        "queryType": "clickhouse_sql",
+        "builder": {
+          "queryData": [],
+          "queryFormulas": [],
+          "queryTraceOperator": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "Ingest health",
+            "disabled": false,
+            "query": "SELECT coalesce(nullIf(resources_string['service.name'], ''), 'unknown') AS service, severity_text AS severity, count() AS value FROM signoz_logs.distributed_logs_v2 WHERE timestamp BETWEEN {{.start_timestamp_nano}} AND {{.end_timestamp_nano}} AND ts_bucket_start BETWEEN {{.start_timestamp}} - 1800 AND {{.end_timestamp}} AND coalesce(nullIf(resources_string['service.name'], ''), 'unknown') IN {{.service.name}} AND (positionCaseInsensitive(body, 'error') > 0 OR positionCaseInsensitive(body, 'refused') > 0 OR positionCaseInsensitive(body, 'dropping data') > 0 OR positionCaseInsensitive(body, 'exporting failed') > 0 OR positionCaseInsensitive(body, 'connection refused') > 0) GROUP BY service, severity ORDER BY value DESC LIMIT 50"
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "unit": ""
+      }
+    }
+  ]
+}
