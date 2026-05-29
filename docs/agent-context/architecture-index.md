@@ -11,6 +11,9 @@ Last updated: 2026-05-28
   auth headers, CLI contract, status codes, and audit rows.
 - `docs/data-model.md`: resource attributes, signal guidance, cardinality
   policy, capture profiles, dashboard dimensions, and normalization rule.
+- `docs/codex-telemetry-storage.md`: Codex telemetry flow diagrams, SigNoz
+  ClickHouse table/column dictionary, observed Codex fields, and auth SQLite
+  storage map.
 - `docs/onboarding.md`: Codex and Claude Code client config, installers,
   max-capture overlay, and onboarding verification.
 - `docs/operating.md`: target local operations, smoke tests, health checks,
