@@ -66,16 +66,23 @@ def _response_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return {name: value for name, value in headers.items() if name.lower() in allowed}
 
 
+async def _send_forward_request(
+    client: httpx.AsyncClient,
+    request: ForwardRequest,
+) -> tuple[int, Mapping[str, str], bytes]:
+    response = await client.request(
+        request.method,
+        request.url,
+        content=request.body,
+        headers=request.headers,
+    )
+    return response.status_code, response.headers, response.content
+
+
 def _default_forwarder(settings: Settings) -> Forwarder:
     async def forward(request: ForwardRequest) -> tuple[int, Mapping[str, str], bytes]:
         async with httpx.AsyncClient(timeout=settings.gateway_forward_timeout_seconds) as client:
-            response = await client.request(
-                request.method,
-                request.url,
-                content=request.body,
-                headers=request.headers,
-            )
-        return response.status_code, response.headers, response.content
+            return await _send_forward_request(client, request)
 
     return forward
 
@@ -108,21 +115,8 @@ class ManagedHttpForwarder:
     async def __call__(self, request: ForwardRequest) -> tuple[int, Mapping[str, str], bytes]:
         if self._client is None:
             async with httpx.AsyncClient(timeout=self._settings.gateway_forward_timeout_seconds) as client:
-                return await self._send(client, request)
-        return await self._send(self._client, request)
-
-    @staticmethod
-    async def _send(
-        client: httpx.AsyncClient,
-        request: ForwardRequest,
-    ) -> tuple[int, Mapping[str, str], bytes]:
-        response = await client.request(
-            request.method,
-            request.url,
-            content=request.body,
-            headers=request.headers,
-        )
-        return response.status_code, response.headers, response.content
+                return await _send_forward_request(client, request)
+        return await _send_forward_request(self._client, request)
 
 
 def create_gateway_router(
@@ -190,9 +184,7 @@ def create_gateway_router(
         )
 
     def _make_endpoint(path: str):
-        # Return a handler that closes over `path` so FastAPI does not treat it
-        # as a query-parameter dependency (which would allow callers to override
-        # the OTLP path via ?path=...).
+        # Bind each route's OTLP path so FastAPI cannot expose it as a query parameter.
         async def endpoint(request: Request) -> Response:
             return await handle_otlp(path, request)
 

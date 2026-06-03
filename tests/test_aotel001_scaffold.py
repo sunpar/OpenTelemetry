@@ -22,7 +22,6 @@ def test_makefile_defines_documented_entry_points():
         "check",
         "native-up",
         "up",
-        "up",
         "down",
         "user",
         "token",

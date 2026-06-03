@@ -250,7 +250,6 @@ def test_managed_forwarder_reuses_client_and_closes(monkeypatch):
 
 
 def test_gateway_ignores_path_query_parameter_injection(tmp_path):
-    """A ?path= query parameter must not override the route's fixed OTLP path."""
     settings, conn = _settings(tmp_path)
     _, issued = _issue(conn, capture_profile="max")
     forwarded = []
