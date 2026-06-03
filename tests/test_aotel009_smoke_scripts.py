@@ -88,6 +88,8 @@ def test_smoke_defaults_cover_auth_paths_and_direct_ports():
 
     assert args.signal_path == ["/v1/logs", "/v1/traces", "/v1/metrics"]
     assert args.direct_port is None
+    assert args.check_direct_ports is False
+    assert args.skip_docker_port_check is False
     assert smoke.default_direct_ports("http://localhost:8088") == ["127.0.0.1:4317", "127.0.0.1:4318"]
     assert smoke.default_direct_ports("http://10.0.0.5:8088") == [
         "10.0.0.5:4317",
@@ -96,6 +98,17 @@ def test_smoke_defaults_cover_auth_paths_and_direct_ports():
         "127.0.0.1:4318",
     ]
     assert args.invalid_token == "invalid-token"
+
+
+def test_smoke_accepts_deprecated_skip_docker_port_check_noop():
+    smoke = _load_script("scripts/smoke-test-otel.py")
+
+    args = smoke.build_parser().parse_args(
+        ["--endpoint", "http://localhost:8088", "--skip-docker-port-check"]
+    )
+
+    assert args.skip_docker_port_check is True
+    assert not hasattr(args, "check_docker_published_ports")
 
 
 def test_smoke_token_sources_avoid_command_line_secrets(tmp_path, monkeypatch):
@@ -112,7 +125,7 @@ def test_smoke_token_sources_avoid_command_line_secrets(tmp_path, monkeypatch):
     )
     assert smoke.read_token(args) == "TOKEN_FROM_FILE"
 
-    with pytest.raises(ValueError, match="exactly one token source"):
+    with pytest.raises(ValueError, match=smoke.TOKEN_SOURCE_ERROR):
         args = smoke.build_parser().parse_args(
             [
                 "--endpoint",
@@ -140,9 +153,9 @@ def test_smoke_script_rejects_real_token_literals_in_repo():
         assert real_token.search(text) is None
 
 
-def test_live_compose_smoke_script_is_opt_in():
-    if os.environ.get("AOTEL_RUN_COMPOSE_SMOKE") != "1":
-        pytest.skip("set AOTEL_RUN_COMPOSE_SMOKE=1 and AOTEL_SMOKE_TOKEN to run live gateway smoke")
+def test_live_native_smoke_script_is_opt_in():
+    if os.environ.get("AOTEL_RUN_NATIVE_SMOKE") != "1":
+        pytest.skip("set AOTEL_RUN_NATIVE_SMOKE=1 and AOTEL_SMOKE_TOKEN to run live gateway smoke")
 
     token = os.environ["AOTEL_SMOKE_TOKEN"]
     endpoint = os.environ.get("AOTEL_SMOKE_ENDPOINT", "http://localhost:8088")

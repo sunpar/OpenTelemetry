@@ -1,50 +1,44 @@
 # Architecture
 
-This project defines an authenticated OpenTelemetry gateway for agent telemetry:
-control plane, ingress, Collector gateway, client config generators, SigNoz
-bootstrap, and dashboards.
+This project defines an authenticated native FastAPI OpenTelemetry gateway for
+agent telemetry: control plane, OTLP/HTTP ingress, client config generators,
+upstream forwarding, and dashboard/query references.
 
 ## System Diagram
 
 ```mermaid
 flowchart TD
-  A["Codex / Claude Code / other agent tools"] -->|"OTLP/HTTP + Authorization bearer token"| B["Nginx or Caddy ingress"]
-  B -->|"auth_request"| C["auth-api"]
-  C -->|"204 + trusted identity headers"| B
-  B -->|"OTLP payload + X-Telemetry-* headers"| D["OpenTelemetry Collector gateway"]
-  D -->|"resource attrs, normalization, batch, queue"| E["SigNoz"]
+  A["Codex / Claude Code / other agent tools"] -->|"OTLP/HTTP + Authorization bearer token"| B["FastAPI auth-api native gateway"]
+  B -->|"validate token + audit ingest"| C["SQLite auth database"]
+  B -->|"OTLP payload + trusted X-Telemetry-* headers"| D["Native Collector, managed OTLP endpoint, or separately operated SigNoz ingest"]
+  D -->|"store/query"| E["Observability backend"]
 ```
 
 ## Core Request Flow
 
 1. Agent tools post telemetry to `/v1/logs`, `/v1/traces`, or `/v1/metrics`.
-2. Ingress calls `auth-api` through an internal auth subrequest.
-3. `auth-api` validates an opaque bearer token and returns identity headers.
-4. Ingress overwrites any spoofed client identity headers with trusted values
-   from `auth-api`.
-5. The Collector receives OTLP/HTTP with `include_metadata: true`.
-6. Collector processors copy trusted request headers into resource attributes.
-7. The Collector normalizes a small set of agent fields, batches, queues, and
-   exports to SigNoz.
-8. SigNoz stores logs, traces, and metrics with consistent user, team, token,
-   and tool dimensions.
+2. The FastAPI gateway validates an opaque bearer token against the shared auth
+   database.
+3. Invalid, unauthorized, unsupported, or oversized requests are rejected before
+   forwarding.
+4. The gateway overwrites any spoofed client `X-Telemetry-*` identity headers
+   with trusted values from the token record.
+5. The gateway forwards the original OTLP/HTTP body to `AOTEL_OTLP_UPSTREAM`.
+6. The upstream collector or backend stores logs, traces, and metrics with
+   consistent user, team, token, and tool dimensions.
 
 ## Components
 
-### auth-api
+### auth-api Native Gateway
 
-The token/control-plane service owns users, teams, tokens, token revocation, and
-ingest audit records. V1 uses FastAPI and SQLite with a schema that can move to
-Postgres later.
+The token/control-plane service owns users, teams, tokens, token revocation,
+ingest audit records, and the native OTLP/HTTP gateway. V1 uses FastAPI and
+SQLite with a schema that can move to Postgres later.
 
 The service is not a public admin API in v1. Token issuance and user management
 run through `otelctl` with local DB access or an internal-only admin path.
 
-### Authenticated Ingress
-
-Nginx is the baseline ingress because `auth_request` keeps the OTLP request body
-untouched while delegating identity checks to `auth-api`. The ingress accepts
-only these OTLP/HTTP paths:
+The gateway routes are implemented as normal FastAPI routes under:
 
 ```text
 /v1/logs
@@ -52,52 +46,62 @@ only these OTLP/HTTP paths:
 /v1/metrics
 ```
 
-For production, terminate TLS before traffic reaches the gateway. Caddy is an
-alternative when automatic certificate management matters more than matching
-existing Nginx infrastructure.
+The router lives in `auth_api.gateway` so a future existing FastAPI application
+can mount it directly instead of running this package as a standalone service.
 
-### Collector Gateway
+### Upstream OTLP Backend
 
-The Collector enforces enrichment after auth:
+The repository runtime does not start Docker images. Configure
+`AOTEL_OTLP_UPSTREAM` to point at one of:
 
-- receive OTLP/HTTP from ingress only
-- use request metadata to enrich resource attributes
-- normalize only the fields required for dashboards
-- preserve native Codex and Claude Code telemetry fields
-- use memory limits, batching, exporter queues, and retry-on-failure
-- export to SigNoz over the internal Docker network or private subnet
+- a native OpenTelemetry Collector installed as a local or host service
+- a managed OTLP/HTTP endpoint
+- a separately operated SigNoz ingest endpoint
 
-Use `otel/opentelemetry-collector-contrib`, not the core-only image. The contrib
-distribution includes processors and exporters for expected trial growth.
+```text
+/v1/logs
+/v1/traces
+/v1/metrics
+```
+
+For production, terminate TLS before traffic reaches the FastAPI app or run the
+app behind an existing non-Docker load balancer. If a native Collector is used,
+install `otelcol-contrib` through the host package manager or release binary and
+point `AOTEL_OTLP_UPSTREAM` at its OTLP/HTTP listener.
+For managed OTLP backends that require ingestion credentials, set
+`AOTEL_OTLP_UPSTREAM_AUTHORIZATION` to the backend `Authorization` header value.
+The gateway authenticates per-user bearer tokens locally and sends only this
+configured upstream credential to the backend.
 
 ### SigNoz
 
-SigNoz is the v1 backend for UI, dashboards, logs, traces, metrics, and
-ClickHouse-backed storage. Do not expose SigNoz OTLP ports to teammates. All
-external ingestion goes through the authenticated gateway.
+SigNoz can still be the backend for UI, dashboards, logs, traces, metrics, and
+ClickHouse-backed storage, but it is not started by this repository runtime. Do
+not expose backend OTLP ports directly to teammates. All external ingestion
+goes through the authenticated FastAPI gateway.
 
 ## Trust Boundaries
 
-- External clients can provide `Authorization` only.
+- External clients can provide `Authorization` and OTLP transport headers only.
 - External clients cannot be trusted for `X-Telemetry-*` identity headers.
-- Ingress must overwrite identity headers before proxying to the Collector.
-- Ingress must derive source IP from the socket or a configured trusted proxy
-  chain. Do not trust client-supplied `X-Forwarded-For` directly.
-- Collector enrichment must use trusted metadata from ingress, not payload
+- The FastAPI gateway must overwrite identity headers before forwarding.
+- The FastAPI gateway must not forward per-user bearer tokens to upstream OTLP
+  backends.
+- The FastAPI gateway derives source IP from the request socket or hosting
+  platform. Do not trust client-supplied `X-Forwarded-For` directly.
+- Upstream enrichment must use trusted gateway metadata, not client payload
   fields supplied by clients.
-- SigNoz ingestion ports must stay internal.
+- Backend ingestion ports must stay private.
 
 ## Local Port Plan
 
 | Component | Port | Exposure |
 | --- | ---: | --- |
-| Nginx gateway | 8088 | Local host or public edge in production |
-| auth-api | 8000 | Internal Docker network |
-| Collector OTLP/HTTP | 4318 | Internal Docker network |
-| Collector OTLP/gRPC to SigNoz | 4317 | Internal Docker network |
-| SigNoz UI | 8080 | Local host or authenticated internal UI |
+| FastAPI auth/gateway | 8088 | Local host or public edge in production |
+| Native Collector OTLP/HTTP | 4318 | Private upstream if used |
+| SigNoz UI | 8080 | Optional authenticated internal UI |
 
-## Baseline Collector Config
+## Optional Native Collector Config
 
 ```yaml
 receivers:
@@ -156,7 +160,7 @@ processors:
     timeout: 5s
 exporters:
   otlp/signoz:
-    endpoint: signoz-otel-collector:4317
+    endpoint: ${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}
     tls:
       insecure: true
     sending_queue:

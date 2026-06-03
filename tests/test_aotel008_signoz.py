@@ -133,22 +133,14 @@ def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
     _assert_static_collector_config_without_opamp(collector_command)
 
 
-def test_signoz_makefile_startup_uses_pinned_upstream_revision():
+def test_signoz_makefile_keeps_legacy_revision_without_runtime_startup():
     makefile = MAKEFILE.read_text()
 
-    assert f"SIGNOZ_UPSTREAM_REVISION ?= {UPSTREAM_REVISION}" in makefile
-    assert "git clone https://github.com/SigNoz/signoz.git" in makefile
+    assert "SIGNOZ_UPSTREAM_REVISION" not in makefile
+    assert "legacy-compose-config:" in makefile
+    assert "signoz-up:" not in makefile
+    assert "git clone https://github.com/SigNoz/signoz.git" not in makefile
     assert "git clone -b main" not in makefile
-    fetch_command = (
-        'git -C "$(SIGNOZ_VENDOR_DIR)" fetch --depth 1 origin '
-        '"$(SIGNOZ_UPSTREAM_REVISION)"'
-    )
-    checkout_command = (
-        'git -C "$(SIGNOZ_VENDOR_DIR)" checkout --detach '
-        '"$(SIGNOZ_UPSTREAM_REVISION)"'
-    )
-    assert fetch_command in makefile
-    assert checkout_command in makefile
 
 
 def test_signoz_compose_check_script_validates_override_stack(tmp_path, monkeypatch):

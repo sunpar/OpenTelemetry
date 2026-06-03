@@ -1,4 +1,3 @@
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -12,20 +11,11 @@ def _load_compose():
     return yaml.safe_load(COMPOSE_FILE.read_text())
 
 
-def test_gateway_compose_config_validates():
-    result = subprocess.run(
-        ["docker", "compose", "-f", str(COMPOSE_FILE), "config"],
-        cwd=ROOT,
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+def test_gateway_compose_file_remains_legacy_reference():
+    compose = _load_compose()
 
-    assert result.returncode == 0, result.stderr
-    config = yaml.safe_load(result.stdout)
-    assert config["name"] == "agent-otel-gateway"
-    assert set(config["services"]) == {"auth-api", "nginx", "otel-collector"}
+    assert compose["name"] == "agent-otel-gateway"
+    assert set(compose["services"]) == {"auth-api", "nginx", "otel-collector"}
 
 
 def test_gateway_services_are_wired_to_repo_configs():
@@ -45,6 +35,7 @@ def test_gateway_services_are_wired_to_repo_configs():
 
     collector = services["otel-collector"]
     assert collector["image"].startswith("otel/opentelemetry-collector-contrib:")
+    assert collector["environment"]["SIGNOZ_OTLP_ENDPOINT"] == "${SIGNOZ_OTLP_ENDPOINT:-signoz-otel-collector:4317}"
     assert collector["command"] == ["--config=/etc/otelcol-contrib/collector.local.yaml"]
     assert "../infra/otel/collector.local.yaml:/etc/otelcol-contrib/collector.local.yaml:ro" in collector["volumes"]
 
@@ -77,20 +68,25 @@ def test_gateway_collector_joins_private_signoz_network():
 def test_makefile_wires_gateway_targets_and_otelctl_context():
     makefile = (ROOT / "Makefile").read_text()
 
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build" in makefile
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml down" in makefile
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml logs -f" in makefile
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api" in makefile
-    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config" in makefile
-    assert "OTELCTL_CONTAINER_PYTHONPATH := /workspace/packages/auth-core/src:/workspace/cli/otelctl/src" in makefile
-    assert "env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py" in makefile
-    assert "python /workspace/cli/otelctl/src/otelctl.py" in makefile
+    assert "$(PYTHON) -m uvicorn auth_api.app:app" in makefile
+    assert "PYTHONPATH=$(AUTH_API_NATIVE_PYTHONPATH)" in makefile
+    assert "OTELCTL_NATIVE_PYTHONPATH := packages/auth-core/src:cli/otelctl/src" in makefile
+    assert "PYTHONPATH=$(OTELCTL_NATIVE_PYTHONPATH) $(PYTHON) cli/otelctl/src/otelctl.py" in makefile
     assert "scripts/smoke-test-otel.py" in makefile
     assert "AOTEL_SMOKE_TOKEN" in makefile
+    assert "gateway-up:" not in makefile
+    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build" not in makefile
+    assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api" not in makefile
+
+
+def test_collector_local_endpoint_is_env_driven_with_native_default():
+    collector_config = (ROOT / "infra/otel/collector.local.yaml").read_text()
+
+    assert "endpoint: ${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}" in collector_config
 
 
 def test_makefile_does_not_create_signoz_managed_network():
     makefile = (ROOT / "Makefile").read_text()
 
     assert "docker network create \"$(SIGNOZ_NETWORK)\"" not in makefile
-    assert "-f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans" in makefile
+    assert "-f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans" not in makefile

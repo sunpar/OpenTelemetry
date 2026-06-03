@@ -17,13 +17,12 @@ def test_makefile_defines_documented_entry_points():
         "lint",
         "test",
         "static-check",
+        "legacy-compose-config",
         "compose-config",
         "check",
-        "signoz-up",
-        "signoz-down",
+        "native-up",
         "up",
         "down",
-        "logs",
         "user",
         "token",
         "smoke",
@@ -40,10 +39,11 @@ def test_env_example_contains_only_non_secret_defaults():
 
     for key in [
         "AOTEL_ENV=local",
-        "AUTH_API_PORT=8000",
+        "AOTEL_PUBLIC_ENDPOINT=http://localhost:8088",
+        "AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318",
+        "AUTH_API_PORT=8088",
+        "AUTH_API_DB_PATH=./auth-api.sqlite3",
         "GATEWAY_PORT=8088",
-        "OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT=http://otel-collector:4318",
-        "SIGNOZ_OTLP_GRPC_ENDPOINT=signoz-otel-collector:4317",
     ]:
         assert key in env_text
 
@@ -124,11 +124,12 @@ def test_make_help_runs_without_downstream_services():
     assert result.returncode == 0
     assert "Agent OpenTelemetry Trial" in result.stdout
     assert "make check" in result.stdout
-    assert "make signoz-down" in result.stdout
+    assert "make native-up" in result.stdout
+    assert "make legacy-compose-config" in result.stdout
     assert result.stderr == ""
 
 
-def test_make_user_reports_required_variables_before_compose_execution():
+def test_make_user_reports_required_variables_before_native_execution():
     result = subprocess.run(
         ["make", "user"],
         cwd=ROOT,

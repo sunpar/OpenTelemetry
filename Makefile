@@ -7,7 +7,11 @@ include .env
 endif
 
 AOTEL_PUBLIC_ENDPOINT ?= http://localhost:8088
-AUTH_API_DB_PATH ?= /data/auth-api.sqlite3
+AOTEL_OTLP_UPSTREAM ?=
+AOTEL_OTLP_UPSTREAM_AUTHORIZATION ?=
+AUTH_API_DB_PATH ?= ./auth-api.sqlite3
+AUTH_API_HOST ?= $(GATEWAY_HOST)
+AUTH_API_PORT ?= $(GATEWAY_PORT)
 CAPTURE_PROFILE ?= normal
 DOCKER_COMPOSE ?= docker compose
 ENDPOINT ?= $(AOTEL_PUBLIC_ENDPOINT)
@@ -19,14 +23,14 @@ PROFILE ?= normal
 PYTHON ?= python3
 SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
-SIGNOZ_UPSTREAM_REVISION ?= a8f5bdf2562c35c2896a5a287552e124fa2c0037
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
 TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
-OTELCTL_CONTAINER_PYTHONPATH := /workspace/packages/auth-core/src:/workspace/cli/otelctl/src
+AUTH_API_NATIVE_PYTHONPATH := packages/auth-core/src:services/auth-api/src
+OTELCTL_NATIVE_PYTHONPATH := packages/auth-core/src:cli/otelctl/src
 
-export AUTH_API_DB_PATH GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
+export AOTEL_OTLP_UPSTREAM AOTEL_OTLP_UPSTREAM_AUTHORIZATION AUTH_API_DB_PATH AUTH_API_HOST AUTH_API_PORT GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
-.PHONY: help install-dev lint test static-check compose-config check signoz-up signoz-down gateway-up up down logs user token smoke install-codex install-claude
+.PHONY: help install-dev lint test static-check legacy-compose-config compose-config check native-up up down user token smoke install-codex install-claude
 
 define require_var
 	@if [ -z "$($(1))" ]; then \
@@ -44,13 +48,14 @@ help:
 	@printf '%s\n' '  make lint             Run Ruff.'
 	@printf '%s\n' '  make test             Run the Python test suite.'
 	@printf '%s\n' '  make static-check     Run docs/static checks and git diff --check.'
-	@printf '%s\n' '  make compose-config   Validate gateway and SigNoz Compose config.'
-	@printf '%s\n' '  make check            Run lint, tests, static checks, and Compose config.'
-	@printf '%s\n' '  make signoz-up       Clone/start the local SigNoz Docker stack.'
-	@printf '%s\n' '  make signoz-down     Stop the local SigNoz Docker stack.'
-	@printf '%s\n' '  make up              Start auth-api, Nginx, and Collector gateway.'
-	@printf '%s\n' '  make down            Stop the gateway stack.'
-	@printf '%s\n' '  make logs            Follow gateway stack logs.'
+	@printf '%s\n' '  make check            Run lint, tests, and static checks.'
+	@printf '%s\n' '  AOTEL_OTLP_UPSTREAM=... make native-up'
+	@printf '%s\n' '                       Start the native FastAPI auth/gateway runtime.'
+	@printf '%s\n' '                       Optional: set AOTEL_OTLP_UPSTREAM_AUTHORIZATION for managed backends.'
+	@printf '%s\n' '  make up              Alias for native-up.'
+	@printf '%s\n' '  make down            Explain how to stop the foreground native runtime.'
+	@printf '%s\n' '  make legacy-compose-config'
+	@printf '%s\n' '                       Validate legacy Docker Compose reference files.'
 	@printf '%s\n' '  make user EMAIL=... TEAM=... [NAME=...]'
 	@printf '%s\n' '                       Create/update a telemetry user.'
 	@printf '%s\n' '  make token EMAIL=... [TOKEN_NAME=...] [EXPIRES=90d] [CAPTURE_PROFILE=normal|max]'
@@ -76,52 +81,32 @@ static-check:
 	git diff --check
 	git diff --cached --check
 
-compose-config:
+legacy-compose-config:
 	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null
 	$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null
 	DOCKER_COMPOSE="$(DOCKER_COMPOSE)" SIGNOZ_VENDOR_DIR="$(SIGNOZ_VENDOR_DIR)" SIGNOZ_COMPOSE_OVERRIDE="$(SIGNOZ_COMPOSE_OVERRIDE)" bash scripts/check-signoz-compose-config.sh
 
-check: lint test static-check compose-config
+compose-config: legacy-compose-config
 
-signoz-up:
-	@mkdir -p .vendor
-	@if [ ! -d "$(SIGNOZ_VENDOR_DIR)/.git" ]; then \
-		git clone https://github.com/SigNoz/signoz.git "$(SIGNOZ_VENDOR_DIR)"; \
-	fi
-	git -C "$(SIGNOZ_VENDOR_DIR)" fetch --depth 1 origin "$(SIGNOZ_UPSTREAM_REVISION)"
-	git -C "$(SIGNOZ_VENDOR_DIR)" checkout --detach "$(SIGNOZ_UPSTREAM_REVISION)"
-	$(DOCKER_COMPOSE) -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) up -d --remove-orphans
+check: lint test static-check
 
-signoz-down:
-	@if [ ! -f "$(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml" ]; then \
-		printf '%s\n' 'SigNoz vendor compose file is missing. Run make signoz-up first.'; \
-		exit 2; \
-	fi
-	$(DOCKER_COMPOSE) -f $(SIGNOZ_VENDOR_DIR)/deploy/docker/docker-compose.yaml -f $(SIGNOZ_COMPOSE_OVERRIDE) down
+native-up:
+	$(call require_var,AOTEL_OTLP_UPSTREAM,AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up)
+	PYTHONPATH=$(AUTH_API_NATIVE_PYTHONPATH) $(PYTHON) -m uvicorn auth_api.app:app --host "$(AUTH_API_HOST)" --port "$(AUTH_API_PORT)"
 
-gateway-up: up
-
-up:
-	@docker network inspect "$(SIGNOZ_NETWORK)" >/dev/null 2>&1 || { \
-		printf '%s\n' 'SigNoz network is missing. Run make signoz-up first.'; \
-		exit 2; \
-	}
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build
+up: native-up
 
 down:
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml down
-
-logs:
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml logs -f
+	@printf '%s\n' 'The native FastAPI gateway runs in the foreground; stop it with Ctrl-C or your process supervisor.'
 
 user:
 	$(call require_var,EMAIL,make user EMAIL=alice@example.com TEAM=quant-dev)
 	$(call require_var,TEAM,make user EMAIL=alice@example.com TEAM=quant-dev)
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
+	PYTHONPATH=$(OTELCTL_NATIVE_PYTHONPATH) $(PYTHON) cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" users add --email "$(EMAIL)" --team "$(TEAM)" $(if $(NAME),--name "$(NAME)",)
 
 token:
 	$(call require_var,EMAIL,make token EMAIL=alice@example.com)
-	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api env PYTHONPATH=$(OTELCTL_CONTAINER_PYTHONPATH) python /workspace/cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
+	PYTHONPATH=$(OTELCTL_NATIVE_PYTHONPATH) $(PYTHON) cli/otelctl/src/otelctl.py --db-path "$(AUTH_API_DB_PATH)" tokens issue --email "$(EMAIL)" $(if $(TOKEN_NAME),--name "$(TOKEN_NAME)",) --expires "$(EXPIRES)" --capture-profile "$(CAPTURE_PROFILE)" --endpoint "$(ENDPOINT)"
 
 smoke:
 	@if [ -z "$${AOTEL_SMOKE_TOKEN:-}" ] && [ -z "$(TOKEN)" ]; then \
@@ -129,11 +114,7 @@ smoke:
 		printf '%s\n' 'Usage: AOTEL_SMOKE_TOKEN=<issued-token> make smoke'; \
 		exit 2; \
 	fi
-	@if [ -n "$${AOTEL_SMOKE_TOKEN:-}" ]; then \
-		python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
-	else \
-		AOTEL_SMOKE_TOKEN="$(TOKEN)" python3 scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
-	fi
+	AOTEL_SMOKE_TOKEN="$${AOTEL_SMOKE_TOKEN:-$(TOKEN)}" $(PYTHON) scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"
 
 install-codex:
 	$(call require_var,ENDPOINT,make install-codex ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)

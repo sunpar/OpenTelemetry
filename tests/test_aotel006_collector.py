@@ -138,12 +138,12 @@ def test_collector_normalizes_codex_and_claude_for_all_signals():
             assert 'attributes["service.name"] == "claude-code"' in joined
 
 
-def test_collector_exporter_has_queue_retry_and_internal_signoz_endpoint():
+def test_collector_exporter_has_queue_retry_and_private_backend_endpoint():
     local = _load_yaml(LOCAL_CONFIG)
     prod = _load_yaml(PROD_CONFIG)
 
     local_exporter = local["exporters"]["otlp/signoz"]
-    assert local_exporter["endpoint"] == "signoz-otel-collector:4317"
+    assert local_exporter["endpoint"] == "${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}"
 
     prod_exporter = prod["exporters"]["otlp/signoz"]
     assert prod_exporter["endpoint"] == "${env:SIGNOZ_OTLP_GRPC_ENDPOINT}"

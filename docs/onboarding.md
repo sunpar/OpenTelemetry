@@ -3,14 +3,13 @@
 Target: onboard a teammate and confirm baseline telemetry within five minutes
 after the gateway is running.
 
-Status: this is the planned onboarding interface. The `make` targets and
-installers become runnable in Milestones 1 through 3.
+Status: the native FastAPI gateway, `make` targets, and installers are runnable
+without Docker. The operator must provide a native or external OTLP upstream.
 
 ## Operator Flow
 
 ```sh
-make signoz-up
-make up
+AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up
 make user EMAIL=alice@example.com TEAM=quant-dev
 make token EMAIL=alice@example.com
 ```
@@ -23,7 +22,7 @@ token to the teammate through an approved secret channel.
 1. Install the relevant agent tool.
 2. Apply the generated Codex config or Claude env file.
 3. Run the agent tool.
-4. Confirm data in SigNoz with filters for:
+4. Confirm data in the configured backend with filters for:
    - `telemetry.user.email`
    - `telemetry.team.id`
    - `agent.tool`
@@ -66,10 +65,10 @@ protocol = "binary"
 Authorization = "Bearer <TOKEN>"
 ```
 
-Implementation note: before coding the installer, verify this block against the
-current installed Codex CLI and official Codex configuration docs, then validate
-the rendered TOML with a parser. The project requirement is to generate this
-shape, but Codex config keys may move between CLI releases.
+Implementation note: keep this block aligned with the current installed Codex
+CLI and official Codex configuration docs, then validate the rendered TOML with
+a parser. The project requirement is to generate this shape, but Codex config
+keys may move between CLI releases.
 
 For content capture investigations, generate an explicit overlay that changes
 only:
@@ -142,7 +141,7 @@ be mislabeled as `agent.capture.profile=normal`.
 
 After onboarding, run a small agent action and confirm:
 
-- SigNoz receives at least one event or span.
+- The configured backend receives at least one event or span.
 - `telemetry.user.email` matches the issued token owner.
 - `telemetry.team.id` matches the user's team.
 - `telemetry.token.id` matches the issued token id.

@@ -5,7 +5,6 @@ import argparse
 import importlib.util
 import os
 import socket
-import subprocess
 import sys
 from pathlib import Path
 from urllib import error, request
@@ -14,6 +13,7 @@ from urllib.parse import urlsplit
 
 DEFAULT_SIGNAL_PATHS = ["/v1/logs", "/v1/traces", "/v1/metrics"]
 OTLP_DIRECT_PORTS = {4317, 4318}
+TOKEN_SOURCE_ERROR = "provide exactly one token source: --token, --token-file, --token-stdin, or AOTEL_SMOKE_TOKEN"
 
 
 def _load_sender():
@@ -132,30 +132,6 @@ def check_direct_ports(values: list[str], timeout: float) -> list[str]:
     return failures
 
 
-def check_docker_published_ports() -> list[str]:
-    result = subprocess.run(
-        ["docker", "ps", "--format", "{{.Names}} {{.Ports}}"],
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if result.returncode != 0:
-        return [f"could not inspect Docker-published ports: {result.stderr.strip()}"]
-
-    failures: list[str] = []
-    for line in result.stdout.splitlines():
-        if not line.strip():
-            continue
-        name, _, ports = line.partition(" ")
-        for port in OTLP_DIRECT_PORTS:
-            if f":{port}->" in ports or f"{port}/tcp" in ports and "->" in ports:
-                failures.append(f"{name} publishes direct OTLP ingestion port {port}: {ports}")
-    if not failures:
-        print("ok Docker has no host-published direct OTLP ingestion ports")
-    return failures
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run local gateway smoke and security checks.")
     parser.add_argument("--endpoint", required=True, help="Gateway base URL, for example http://localhost:8088")
@@ -167,15 +143,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--signal-path", action="append", default=list(DEFAULT_SIGNAL_PATHS))
     parser.add_argument("--direct-port", action="append", default=None)
-    parser.add_argument("--skip-direct-port-check", action="store_true")
-    parser.add_argument("--skip-docker-port-check", action="store_true")
+    parser.add_argument(
+        "--check-direct-ports",
+        action="store_true",
+        help="Fail if the configured direct OTLP ports are reachable from this host.",
+    )
+    parser.add_argument(
+        "--skip-docker-port-check",
+        action="store_true",
+        help="Deprecated no-op retained for older smoke invocations.",
+    )
     return parser
 
 
 def read_token(args: argparse.Namespace) -> str:
     explicit_sources = [bool(args.token), bool(args.token_file), bool(args.token_stdin)]
     if sum(explicit_sources) > 1:
-        raise ValueError("provide exactly one token source: --token, --token-file, --token-stdin, or AOTEL_SMOKE_TOKEN")
+        raise ValueError(TOKEN_SOURCE_ERROR)
 
     if args.token:
         return args.token.strip()
@@ -184,7 +168,7 @@ def read_token(args: argparse.Namespace) -> str:
     if args.token_stdin:
         return sys.stdin.read().strip()
     if not args.token_env or not os.environ.get(args.token_env):
-        raise ValueError("provide exactly one token source: --token, --token-file, --token-stdin, or AOTEL_SMOKE_TOKEN")
+        raise ValueError(TOKEN_SOURCE_ERROR)
     return os.environ[args.token_env].strip()
 
 
@@ -193,10 +177,8 @@ def run(args: argparse.Namespace) -> int:
     failures: list[str] = []
     failures.extend(check_invalid_tokens(args.endpoint, args.invalid_token, args.signal_path, args.timeout))
     failures.extend(check_valid_log(args.endpoint, token, args.timeout))
-    if not args.skip_direct_port_check:
+    if args.check_direct_ports:
         failures.extend(check_direct_ports(args.direct_port or default_direct_ports(args.endpoint), args.timeout))
-    if not args.skip_docker_port_check:
-        failures.extend(check_docker_published_ports())
 
     if failures:
         print("smoke checks failed:", file=sys.stderr)

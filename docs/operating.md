@@ -1,21 +1,21 @@
 # Operating Guide
 
-This guide describes the local and team-trial operations targeted by Milestone 1
-and later.
+This guide describes the native local and team-trial operations for the
+FastAPI auth and OTLP gateway runtime.
 
 ## Local Startup
 
 ```sh
-make signoz-up
-make up
+AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up
 ```
 
-Expected services:
+Expected runtime:
 
-- SigNoz UI and storage
-- auth-api
-- Nginx authenticated ingress
-- OpenTelemetry Collector gateway
+- FastAPI `auth-api` serving `/healthz`, `/auth/verify`, `/v1/logs`,
+  `/v1/traces`, and `/v1/metrics`
+- SQLite auth database at `AUTH_API_DB_PATH`
+- native or externally operated OTLP/HTTP upstream base URL at
+  `AOTEL_OTLP_UPSTREAM`
 
 ## Local Shutdown
 
@@ -23,22 +23,13 @@ Expected services:
 make down
 ```
 
-The gateway stack stops without deleting SigNoz data by default. Destructive
-cleanup needs a separate target.
+The native FastAPI gateway runs in the foreground by default. Stop it with
+Ctrl-C or the process supervisor managing it.
 
 ## Logs
 
-```sh
-make logs
-```
-
-For narrower checks:
-
-```sh
-docker compose -f compose/docker-compose.gateway.yml logs -f auth-api
-docker compose -f compose/docker-compose.gateway.yml logs -f nginx
-docker compose -f compose/docker-compose.gateway.yml logs -f otel-collector
-```
+Foreground logs are printed by `make native-up`. For production, use the logs
+from the host process supervisor that starts Uvicorn or the parent FastAPI app.
 
 ## User and Token Operations
 
@@ -57,15 +48,17 @@ make token EMAIL=alice@example.com
 Revoke a token:
 
 ```sh
-docker compose -f compose/docker-compose.gateway.yml exec auth-api \
-  otelctl tokens revoke --token-id tok_01J...
+PYTHONPATH=packages/auth-core/src:cli/otelctl/src \
+  .venv/bin/python cli/otelctl/src/otelctl.py \
+  --db-path ./auth-api.sqlite3 tokens revoke --token-id tok_01J...
 ```
 
 Disable a user:
 
 ```sh
-docker compose -f compose/docker-compose.gateway.yml exec auth-api \
-  otelctl users disable --email alice@example.com
+PYTHONPATH=packages/auth-core/src:cli/otelctl/src \
+  .venv/bin/python cli/otelctl/src/otelctl.py \
+  --db-path ./auth-api.sqlite3 users disable --email alice@example.com
 ```
 
 ## Smoke Tests
@@ -87,21 +80,17 @@ The smoke target runs:
 
 ```sh
 AOTEL_SMOKE_TOKEN=<issued-token> \
-  python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088
+  .venv/bin/python scripts/smoke-test-otel.py --endpoint http://localhost:8088
 ```
 
 It checks:
 
 - invalid bearer tokens return `401` on `/v1/logs`, `/v1/traces`, and
   `/v1/metrics`
-- a valid token can send JSON OTLP test logs, traces, and metrics through
-  Nginx to the Collector
-- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are included on the
-  log smoke request so SigNoz can be checked for trusted resource attributes
-- the gateway endpoint host and loopback do not accept direct OTLP connections
-  on `4317` or `4318`
-- Docker is not publishing host ports for direct OTLP ingestion on `4317` or
-  `4318`
+- a valid token can send JSON OTLP test logs, traces, and metrics through the
+  FastAPI gateway to the configured upstream
+- spoofed `X-Telemetry-*` and `X-Forwarded-For` headers are included on the log
+  smoke request so the upstream can be checked for trusted metadata
 
 To send only one test log:
 
@@ -115,7 +104,7 @@ For real issued tokens, prefer `AOTEL_SMOKE_TOKEN`, `--token-file`, or
 `--token-stdin` with `scripts/smoke-test-otel.py` so the token is not exposed in
 process listings or shell history.
 
-SigNoz must show a test log with:
+The configured backend should show a test log with:
 
 - `telemetry.user.email`
 - `telemetry.team.id`
@@ -130,16 +119,14 @@ Gateway health:
 curl -fsS http://localhost:8088/healthz
 ```
 
-Container health:
-
-```sh
-docker compose -f compose/docker-compose.gateway.yml ps
-```
-
-Collector health is visible in the Collector health dashboard after dashboard
-import only when Collector self-metrics are already routed into SigNoz. The
-current gateway Collector configs export client telemetry to SigNoz, but do not
-scrape the gateway Collector's own metrics endpoint.
+If a native Collector is used, check it with the host service manager or its
+own telemetry endpoint. The FastAPI gateway itself does not require a Collector
+process when `AOTEL_OTLP_UPSTREAM` points directly at a managed backend.
+`AOTEL_OTLP_UPSTREAM` must be a base URL; the gateway appends `/v1/logs`,
+`/v1/traces`, or `/v1/metrics` for each request.
+If the managed backend requires an ingestion credential, set
+`AOTEL_OTLP_UPSTREAM_AUTHORIZATION` to the backend `Authorization` header value.
+Do not reuse per-user gateway bearer tokens for upstream ingestion.
 
 ## Dashboard Import
 
@@ -164,7 +151,7 @@ JSON exists.
 For the local trial, preserve:
 
 - auth-api SQLite DB
-- SigNoz ClickHouse volumes
+- backend storage, if the selected backend is self-hosted
 - generated dashboard JSON
 - `.env` files that contain endpoints, not tokens
 
@@ -174,12 +161,11 @@ data volumes.
 ## Production Notes
 
 - Put TLS in front of the gateway.
-- Keep auth-api and Collector private.
-- Keep SigNoz OTLP ingestion private.
+- Keep backend OTLP ingestion private.
 - Add rate limits before opening the endpoint broadly.
 - Add backups before onboarding more than a small pilot group.
-- Monitor Collector queue size, exporter failures, refused telemetry, memory
-  limiter activity, and SigNoz disk growth.
+- Monitor upstream failures, refused telemetry, request volume, latency, and
+  backend disk or quota growth.
 
 ## Operator Questions
 

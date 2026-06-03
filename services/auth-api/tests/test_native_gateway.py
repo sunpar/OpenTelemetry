@@ -1,0 +1,296 @@
+from pathlib import Path
+import asyncio
+import sys
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from agent_otel_auth_core.db import connect, initialize_database, upsert_user
+from agent_otel_auth_core.tokens import issue_token
+from auth_api.gateway import (
+    ForwardRequest,
+    ManagedHttpForwarder,
+    PayloadTooLarge,
+    _read_limited_body,
+    create_gateway_router,
+)
+from auth_api.request_parsing import content_length
+from auth_api.settings import Settings
+
+
+def _settings(tmp_path, **overrides):
+    db_path = tmp_path / "auth.sqlite3"
+    conn = connect(db_path)
+    initialize_database(conn)
+    values = {
+        "auth_db_path": str(db_path),
+        "otlp_upstream": "http://collector.example.internal",
+    }
+    values.update(overrides)
+    return Settings(**values), conn
+
+
+def _client(settings, forwarder):
+    app = FastAPI()
+    app.include_router(create_gateway_router(settings=settings, forwarder=forwarder))
+    return TestClient(app)
+
+
+def _issue(conn, *, email="alice@example.com", team="quant-dev", capture_profile="normal"):
+    user = upsert_user(conn, email=email, team_id=team)
+    issued = issue_token(conn, user_id=user.id, capture_profile=capture_profile)
+    return user, issued
+
+
+async def _never_forward(request: ForwardRequest):
+    raise AssertionError("request must not be forwarded")
+
+
+class _ChunkedRequest:
+    def __init__(self, chunks):
+        self.chunks = list(chunks)
+        self.consumed = []
+
+    async def stream(self):
+        for chunk in self.chunks:
+            self.consumed.append(chunk)
+            yield chunk
+
+
+def test_limited_body_reader_stops_after_size_cap():
+    request = _ChunkedRequest([b"ab", b"cd", b"ef"])
+
+    async def read():
+        try:
+            await _read_limited_body(request, max_body_bytes=3)
+        except PayloadTooLarge:
+            return
+        raise AssertionError("oversized body must raise PayloadTooLarge")
+
+    asyncio.run(read())
+
+    assert request.consumed == [b"ab", b"cd"]
+
+
+def test_gateway_rejects_missing_token_without_forwarding(tmp_path):
+    settings, conn = _settings(tmp_path)
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        raise AssertionError("invalid requests must not be forwarded")
+
+    client = _client(settings, forwarder)
+
+    response = client.post("/v1/logs", content=b"{}")
+
+    assert response.status_code == 401
+    assert forwarded == []
+    assert conn.execute("SELECT COUNT(*) FROM ingest_audit").fetchone()[0] == 0
+
+
+def test_gateway_requires_configured_upstream(tmp_path):
+    settings, conn = _settings(tmp_path, otlp_upstream=None)
+    _, issued = _issue(conn)
+
+    client = _client(settings, _never_forward)
+
+    response = client.post("/v1/logs", headers={"Authorization": f"Bearer {issued.token}"}, content=b"{}")
+
+    assert response.status_code == 503
+    assert response.text == "OTLP upstream is not configured"
+
+
+def test_gateway_rejects_missing_token_before_reporting_missing_upstream(tmp_path):
+    settings, _ = _settings(tmp_path, otlp_upstream=None)
+
+    client = _client(settings, _never_forward)
+
+    response = client.post("/v1/logs", content=b"{}")
+
+    assert response.status_code == 401
+
+
+def test_gateway_forwards_valid_otlp_request_with_trusted_headers(tmp_path):
+    settings, conn = _settings(tmp_path)
+    user, issued = _issue(conn, capture_profile="max")
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        return 202, {"Content-Type": "application/json"}, b'{"partial_success":{}}'
+
+    client = _client(settings, forwarder)
+
+    response = client.post(
+        "/v1/traces",
+        headers={
+            "Authorization": f"Bearer {issued.token}",
+            "Content-Type": "application/x-protobuf",
+            "Content-Encoding": "gzip",
+            "Accept": "application/json",
+            "User-Agent": "otel-client/1.0",
+            "X-Telemetry-User": "mallory@example.com",
+            "X-Telemetry-Team": "spoofed",
+            "X-Telemetry-Token-Id": "tok_spoofed",
+        },
+        content=b"\x1f\x8bpayload",
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {"partial_success": {}}
+    assert len(forwarded) == 1
+
+    forwarded_request = forwarded[0]
+    assert forwarded_request.method == "POST"
+    assert forwarded_request.url == "http://collector.example.internal/v1/traces"
+    assert forwarded_request.body == b"\x1f\x8bpayload"
+    assert forwarded_request.headers["Content-Type"] == "application/x-protobuf"
+    assert forwarded_request.headers["Content-Encoding"] == "gzip"
+    assert forwarded_request.headers["Accept"] == "application/json"
+    assert forwarded_request.headers["User-Agent"] == "otel-client/1.0"
+    assert forwarded_request.headers["X-Telemetry-User"] == "alice@example.com"
+    assert forwarded_request.headers["X-Telemetry-Team"] == "quant-dev"
+    assert forwarded_request.headers["X-Telemetry-User-Id"] == user.id
+    assert forwarded_request.headers["X-Telemetry-Token-Id"] == issued.record.id
+    assert forwarded_request.headers["X-Telemetry-Capture-Profile"] == "max"
+
+    audit = conn.execute("SELECT path, status_code, token_id FROM ingest_audit").fetchone()
+    assert audit["path"] == "/v1/traces"
+    assert audit["status_code"] == 204
+    assert audit["token_id"] == issued.record.id
+
+
+def test_gateway_uses_configured_upstream_authorization_without_forwarding_client_token(tmp_path):
+    settings, conn = _settings(
+        tmp_path,
+        otlp_upstream_authorization="Bearer upstream-ingest-secret",
+    )
+    _, issued = _issue(conn)
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        return 202, {}, b""
+
+    client = _client(settings, forwarder)
+
+    response = client.post(
+        "/v1/logs",
+        headers={"Authorization": f"Bearer {issued.token}", "Content-Type": "application/json"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 202
+    assert len(forwarded) == 1
+    assert forwarded[0].headers["Authorization"] == "Bearer upstream-ingest-secret"
+    assert issued.token not in forwarded[0].headers["Authorization"]
+
+
+def test_gateway_rejects_oversized_payload_before_auth_audit(tmp_path):
+    settings, conn = _settings(tmp_path, gateway_max_body_bytes=3)
+    _, issued = _issue(conn)
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        raise AssertionError("oversized requests must not be forwarded")
+
+    client = _client(settings, forwarder)
+
+    response = client.post("/v1/metrics", headers={"Authorization": f"Bearer {issued.token}"}, content=b"1234")
+
+    assert response.status_code == 413
+    assert response.text == "OTLP payload is too large"
+    assert forwarded == []
+    assert conn.execute("SELECT COUNT(*) FROM ingest_audit").fetchone()[0] == 0
+
+
+def test_managed_forwarder_reuses_client_and_closes(monkeypatch):
+    instances = []
+
+    class FakeResponse:
+        status_code = 202
+        headers = {"Content-Type": "application/json"}
+        content = b"{}"
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            self.timeout = timeout
+            self.requests = []
+            self.closed = False
+            instances.append(self)
+
+        async def request(self, method, url, *, content, headers):
+            self.requests.append((method, url, content, headers))
+            return FakeResponse()
+
+        async def aclose(self):
+            self.closed = True
+
+    monkeypatch.setattr("auth_api.gateway.httpx.AsyncClient", FakeAsyncClient)
+    forwarder = ManagedHttpForwarder(Settings(otlp_upstream="http://collector.example.internal"))
+    request = ForwardRequest(method="POST", url="http://collector.example.internal/v1/logs", headers={}, body=b"{}")
+
+    async def run_forwarder():
+        await forwarder.open()
+        first = await forwarder(request)
+        second = await forwarder(request)
+        await forwarder.close()
+        return first, second
+
+    first, second = asyncio.run(run_forwarder())
+
+    assert first[0] == 202
+    assert second[0] == 202
+    assert len(instances) == 1
+    assert len(instances[0].requests) == 2
+    assert instances[0].closed is True
+
+
+def test_gateway_ignores_path_query_parameter_injection(tmp_path):
+    settings, conn = _settings(tmp_path)
+    _, issued = _issue(conn, capture_profile="max")
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        return 200, {}, b""
+
+    client = _client(settings, forwarder)
+
+    response = client.post(
+        "/v1/logs?path=/v1/traces",
+        headers={"Authorization": f"Bearer {issued.token}"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 200
+    assert len(forwarded) == 1
+    assert forwarded[0].url == "http://collector.example.internal/v1/logs"
+
+
+def test_content_length_parser_rejects_negative_values():
+    assert content_length("-1") is None
+    assert content_length("-100") is None
+    assert content_length("0") == 0
+    assert content_length("1") == 1
+
+
+def test_gateway_returns_401_before_413_when_token_is_missing_and_body_declared_oversized(tmp_path):
+    # Token is checked from the Authorization header before the body is read.
+    # A request that has no token and a declared-oversized Content-Length must
+    # get 401 (not 413) so that unauthenticated callers cannot force body reads.
+    settings, _ = _settings(tmp_path, gateway_max_body_bytes=3)
+
+    client = _client(settings, _never_forward)
+
+    response = client.post(
+        "/v1/logs",
+        headers={"Content-Length": "999"},
+        content=b"x" * 4,
+    )
+
+    assert response.status_code == 401
