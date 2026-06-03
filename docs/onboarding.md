@@ -65,10 +65,10 @@ protocol = "binary"
 Authorization = "Bearer <TOKEN>"
 ```
 
-Implementation note: before coding the installer, verify this block against the
-current installed Codex CLI and official Codex configuration docs, then validate
-the rendered TOML with a parser. The project requirement is to generate this
-shape, but Codex config keys may move between CLI releases.
+Implementation note: keep this block aligned with the current installed Codex
+CLI and official Codex configuration docs, then validate the rendered TOML with
+a parser. The project requirement is to generate this shape, but Codex config
+keys may move between CLI releases.
 
 For content capture investigations, generate an explicit overlay that changes
 only:

@@ -136,7 +136,7 @@ def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
 def test_signoz_makefile_keeps_legacy_revision_without_runtime_startup():
     makefile = MAKEFILE.read_text()
 
-    assert f"SIGNOZ_UPSTREAM_REVISION ?= {UPSTREAM_REVISION}" in makefile
+    assert "SIGNOZ_UPSTREAM_REVISION" not in makefile
     assert "legacy-compose-config:" in makefile
     assert "signoz-up:" not in makefile
     assert "git clone https://github.com/SigNoz/signoz.git" not in makefile

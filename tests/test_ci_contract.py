@@ -72,6 +72,7 @@ def test_makefile_exposes_local_validation_contract():
         "native-up:",
         "$(PYTHON) -m uvicorn auth_api.app:app",
         "legacy-compose-config:",
+        "compose-config: legacy-compose-config",
         "check: lint test static-check",
     ]:
         assert expected in makefile

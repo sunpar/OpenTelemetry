@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from pydantic import AliasChoices, Field
+from urllib.parse import urlsplit
+
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     auth_db_path: str = Field(
-        default="/data/auth-api.sqlite3",
+        default="./auth-api.sqlite3",
         validation_alias=AliasChoices("AUTH_API_DB_PATH", "AUTH_DB_PATH", "auth_db_path"),
     )
     otlp_upstream: str | None = Field(
@@ -26,3 +28,18 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
+
+    @field_validator("otlp_upstream")
+    @classmethod
+    def validate_otlp_upstream_base_url(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        normalized = value.rstrip("/")
+        parts = urlsplit(normalized)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            raise ValueError("AOTEL_OTLP_UPSTREAM must be an http(s) base URL")
+        if parts.query or parts.fragment:
+            raise ValueError("AOTEL_OTLP_UPSTREAM must not include query or fragment")
+        if parts.path in {"/v1/logs", "/v1/traces", "/v1/metrics"}:
+            raise ValueError("AOTEL_OTLP_UPSTREAM must be a base URL; the gateway appends OTLP signal paths")
+        return normalized

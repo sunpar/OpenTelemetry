@@ -31,6 +31,8 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
+    environment:
+      SIGNOZ_OTLP_ENDPOINT: ${SIGNOZ_OTLP_ENDPOINT:-signoz-otel-collector:4317}
     command:
       - --config=/etc/otelcol-contrib/collector.local.yaml
     volumes:

@@ -22,7 +22,6 @@ PROFILE ?= normal
 PYTHON ?= python3
 SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
-SIGNOZ_UPSTREAM_REVISION ?= a8f5bdf2562c35c2896a5a287552e124fa2c0037
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
 TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
 AUTH_API_NATIVE_PYTHONPATH := packages/auth-core/src:services/auth-api/src
@@ -30,7 +29,7 @@ OTELCTL_NATIVE_PYTHONPATH := packages/auth-core/src:cli/otelctl/src
 
 export AOTEL_OTLP_UPSTREAM AUTH_API_DB_PATH AUTH_API_HOST AUTH_API_PORT GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
-.PHONY: help install-dev lint test static-check legacy-compose-config check native-up gateway-up up down user token smoke install-codex install-claude
+.PHONY: help install-dev lint test static-check legacy-compose-config compose-config check native-up up down user token smoke install-codex install-claude
 
 define require_var
 	@if [ -z "$($(1))" ]; then \
@@ -85,9 +84,9 @@ legacy-compose-config:
 	$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null
 	DOCKER_COMPOSE="$(DOCKER_COMPOSE)" SIGNOZ_VENDOR_DIR="$(SIGNOZ_VENDOR_DIR)" SIGNOZ_COMPOSE_OVERRIDE="$(SIGNOZ_COMPOSE_OVERRIDE)" bash scripts/check-signoz-compose-config.sh
 
-check: lint test static-check
+compose-config: legacy-compose-config
 
-gateway-up: up
+check: lint test static-check
 
 native-up:
 	$(call require_var,AOTEL_OTLP_UPSTREAM,AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up)
@@ -113,11 +112,7 @@ smoke:
 		printf '%s\n' 'Usage: AOTEL_SMOKE_TOKEN=<issued-token> make smoke'; \
 		exit 2; \
 	fi
-	@if [ -n "$${AOTEL_SMOKE_TOKEN:-}" ]; then \
-		$(PYTHON) scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
-	else \
-		AOTEL_SMOKE_TOKEN="$(TOKEN)" $(PYTHON) scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"; \
-	fi
+	AOTEL_SMOKE_TOKEN="$${AOTEL_SMOKE_TOKEN:-$(TOKEN)}" $(PYTHON) scripts/smoke-test-otel.py --endpoint "$(ENDPOINT)"
 
 install-codex:
 	$(call require_var,ENDPOINT,make install-codex ENDPOINT=http://localhost:8088 TOKEN=<issued-token>)

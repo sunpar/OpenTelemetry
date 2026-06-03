@@ -9,6 +9,7 @@ from starlette.responses import PlainTextResponse
 
 from agent_otel_auth_core.db import connect
 from agent_otel_auth_core.tokens import validate_token
+from auth_api.request_parsing import bearer_token, content_length, source_ip
 from auth_api.settings import Settings
 
 
@@ -26,29 +27,6 @@ class ForwardRequest:
 
 
 Forwarder = Callable[[ForwardRequest], Awaitable[tuple[int, Mapping[str, str], bytes]]]
-
-
-def _content_length(value: str | None) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-def _source_ip(request: Request) -> str | None:
-    if request.client is None:
-        return None
-    return request.client.host
-
-
-def _bearer_token(request: Request) -> str | None:
-    authorization = request.headers.get("authorization")
-    if authorization is None or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.removeprefix("Bearer ").strip()
-    return token or None
 
 
 def _upstream_url(settings: Settings, path: str) -> str | None:
@@ -95,6 +73,40 @@ def _default_forwarder(settings: Settings) -> Forwarder:
     return forward
 
 
+class ManagedHttpForwarder:
+    def __init__(self, settings: Settings):
+        self._settings = settings
+        self._client: httpx.AsyncClient | None = None
+
+    async def open(self) -> None:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._settings.gateway_forward_timeout_seconds)
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def __call__(self, request: ForwardRequest) -> tuple[int, Mapping[str, str], bytes]:
+        if self._client is None:
+            async with httpx.AsyncClient(timeout=self._settings.gateway_forward_timeout_seconds) as client:
+                return await self._send(client, request)
+        return await self._send(self._client, request)
+
+    @staticmethod
+    async def _send(
+        client: httpx.AsyncClient,
+        request: ForwardRequest,
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        response = await client.request(
+            request.method,
+            request.url,
+            content=request.body,
+            headers=request.headers,
+        )
+        return response.status_code, response.headers, response.content
+
+
 def create_gateway_router(
     *,
     settings: Settings,
@@ -108,7 +120,7 @@ def create_gateway_router(
         if len(body) > settings.gateway_max_body_bytes:
             return PlainTextResponse("OTLP payload is too large", status_code=413)
 
-        token = _bearer_token(request)
+        token = bearer_token(request)
         if token is None:
             return Response(status_code=401)
 
@@ -116,15 +128,15 @@ def create_gateway_router(
         if upstream_url is None:
             return PlainTextResponse("OTLP upstream is not configured", status_code=503)
 
-        source_ip = _source_ip(request)
+        remote_addr = source_ip(request)
         conn = connect(settings.auth_db_path)
         try:
             result = validate_token(
                 conn,
                 token,
                 path=path,
-                content_length=_content_length(request.headers.get("content-length")) or len(body),
-                remote_addr=source_ip,
+                content_length=content_length(request.headers.get("content-length")) or len(body),
+                remote_addr=remote_addr,
             )
         finally:
             conn.close()
@@ -140,7 +152,7 @@ def create_gateway_router(
                     headers=_forward_headers(
                         request,
                         trusted_headers=result.headers or {},
-                        source_ip=source_ip,
+                        source_ip=remote_addr,
                     ),
                     body=body,
                 )
@@ -154,16 +166,10 @@ def create_gateway_router(
             headers=_response_headers(headers),
         )
 
-    @router.post("/v1/logs")
-    async def logs(request: Request) -> Response:
-        return await handle_otlp("/v1/logs", request)
+    for otlp_path in OTLP_PATHS:
+        async def otlp_endpoint(request: Request, path: str = otlp_path) -> Response:
+            return await handle_otlp(path, request)
 
-    @router.post("/v1/traces")
-    async def traces(request: Request) -> Response:
-        return await handle_otlp("/v1/traces", request)
-
-    @router.post("/v1/metrics")
-    async def metrics(request: Request) -> Response:
-        return await handle_otlp("/v1/metrics", request)
+        router.add_api_route(otlp_path, otlp_endpoint, methods=["POST"])
 
     return router

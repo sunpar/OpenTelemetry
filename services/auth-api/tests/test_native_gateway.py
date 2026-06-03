@@ -1,4 +1,5 @@
 from pathlib import Path
+import asyncio
 import sys
 
 from fastapi import FastAPI
@@ -8,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from agent_otel_auth_core.db import connect, initialize_database, upsert_user
 from agent_otel_auth_core.tokens import issue_token
-from auth_api.gateway import ForwardRequest, create_gateway_router
+from auth_api.gateway import ForwardRequest, ManagedHttpForwarder, create_gateway_router
 from auth_api.settings import Settings
 
 
@@ -36,6 +37,10 @@ def _issue(conn, *, email="alice@example.com", team="quant-dev", capture_profile
     return user, issued
 
 
+async def _never_forward(request: ForwardRequest):
+    raise AssertionError("request must not be forwarded")
+
+
 def test_gateway_rejects_missing_token_without_forwarding(tmp_path):
     settings, conn = _settings(tmp_path)
     forwarded = []
@@ -57,10 +62,7 @@ def test_gateway_requires_configured_upstream(tmp_path):
     settings, conn = _settings(tmp_path, otlp_upstream=None)
     _, issued = _issue(conn)
 
-    async def forwarder(request: ForwardRequest):
-        raise AssertionError("requests without an upstream must not be forwarded")
-
-    client = _client(settings, forwarder)
+    client = _client(settings, _never_forward)
 
     response = client.post("/v1/logs", headers={"Authorization": f"Bearer {issued.token}"}, content=b"{}")
 
@@ -71,10 +73,7 @@ def test_gateway_requires_configured_upstream(tmp_path):
 def test_gateway_rejects_missing_token_before_reporting_missing_upstream(tmp_path):
     settings, _ = _settings(tmp_path, otlp_upstream=None)
 
-    async def forwarder(request: ForwardRequest):
-        raise AssertionError("unauthenticated requests must not be forwarded")
-
-    client = _client(settings, forwarder)
+    client = _client(settings, _never_forward)
 
     response = client.post("/v1/logs", content=b"{}")
 
@@ -148,3 +147,45 @@ def test_gateway_rejects_oversized_payload_before_auth_audit(tmp_path):
     assert response.text == "OTLP payload is too large"
     assert forwarded == []
     assert conn.execute("SELECT COUNT(*) FROM ingest_audit").fetchone()[0] == 0
+
+
+def test_managed_forwarder_reuses_client_and_closes(monkeypatch):
+    instances = []
+
+    class FakeResponse:
+        status_code = 202
+        headers = {"Content-Type": "application/json"}
+        content = b"{}"
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            self.timeout = timeout
+            self.requests = []
+            self.closed = False
+            instances.append(self)
+
+        async def request(self, method, url, *, content, headers):
+            self.requests.append((method, url, content, headers))
+            return FakeResponse()
+
+        async def aclose(self):
+            self.closed = True
+
+    monkeypatch.setattr("auth_api.gateway.httpx.AsyncClient", FakeAsyncClient)
+    forwarder = ManagedHttpForwarder(Settings(otlp_upstream="http://collector.example.internal"))
+    request = ForwardRequest(method="POST", url="http://collector.example.internal/v1/logs", headers={}, body=b"{}")
+
+    async def run_forwarder():
+        await forwarder.open()
+        first = await forwarder(request)
+        second = await forwarder(request)
+        await forwarder.close()
+        return first, second
+
+    first, second = asyncio.run(run_forwarder())
+
+    assert first[0] == 202
+    assert second[0] == 202
+    assert len(instances) == 1
+    assert len(instances[0].requests) == 2
+    assert instances[0].closed is True

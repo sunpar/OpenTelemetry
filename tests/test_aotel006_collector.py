@@ -143,7 +143,7 @@ def test_collector_exporter_has_queue_retry_and_private_backend_endpoint():
     prod = _load_yaml(PROD_CONFIG)
 
     local_exporter = local["exporters"]["otlp/signoz"]
-    assert local_exporter["endpoint"] == "127.0.0.1:4317"
+    assert local_exporter["endpoint"] == "${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}"
 
     prod_exporter = prod["exporters"]["otlp/signoz"]
     assert prod_exporter["endpoint"] == "${env:SIGNOZ_OTLP_GRPC_ENDPOINT}"

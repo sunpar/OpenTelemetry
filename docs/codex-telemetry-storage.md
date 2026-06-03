@@ -764,7 +764,8 @@ canonical event store.
 ## Auth SQLite Storage
 
 The auth database path is configured by `AUTH_API_DB_PATH` and defaults to
-`/data/auth-api.sqlite3` inside the auth-api container.
+`./auth-api.sqlite3` for the native runtime. The legacy Compose reference sets
+`AUTH_API_DB_PATH=/data/auth-api.sqlite3` inside the auth-api container.
 
 ### `users`
 

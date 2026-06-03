@@ -34,9 +34,11 @@ make token EMAIL=alice@example.com
 make smoke TOKEN=<issued-token>
 ```
 
-`AOTEL_OTLP_UPSTREAM` must point at a native OpenTelemetry Collector, managed
-OTLP endpoint, or separately operated SigNoz ingest endpoint. This repository no
-longer requires Docker images for its runtime.
+`AOTEL_OTLP_UPSTREAM` must be the base URL of a native OpenTelemetry Collector,
+managed OTLP/HTTP endpoint, or separately operated SigNoz ingest endpoint. Do
+not include `/v1/logs`, `/v1/traces`, or `/v1/metrics`; the gateway appends the
+signal path before forwarding. This repository no longer requires Docker images
+for its runtime.
 
 The token command prints Codex and Claude Code snippets so teammates do not have
 to assemble OpenTelemetry settings by hand.

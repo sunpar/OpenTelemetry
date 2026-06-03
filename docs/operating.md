@@ -14,7 +14,8 @@ Expected runtime:
 - FastAPI `auth-api` serving `/healthz`, `/auth/verify`, `/v1/logs`,
   `/v1/traces`, and `/v1/metrics`
 - SQLite auth database at `AUTH_API_DB_PATH`
-- native or externally operated OTLP upstream at `AOTEL_OTLP_UPSTREAM`
+- native or externally operated OTLP/HTTP upstream base URL at
+  `AOTEL_OTLP_UPSTREAM`
 
 ## Local Shutdown
 
@@ -121,6 +122,8 @@ curl -fsS http://localhost:8088/healthz
 If a native Collector is used, check it with the host service manager or its
 own telemetry endpoint. The FastAPI gateway itself does not require a Collector
 process when `AOTEL_OTLP_UPSTREAM` points directly at a managed backend.
+`AOTEL_OTLP_UPSTREAM` must be a base URL; the gateway appends `/v1/logs`,
+`/v1/traces`, or `/v1/metrics` for each request.
 
 ## Dashboard Import
 

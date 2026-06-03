@@ -35,6 +35,7 @@ def test_gateway_services_are_wired_to_repo_configs():
 
     collector = services["otel-collector"]
     assert collector["image"].startswith("otel/opentelemetry-collector-contrib:")
+    assert collector["environment"]["SIGNOZ_OTLP_ENDPOINT"] == "${SIGNOZ_OTLP_ENDPOINT:-signoz-otel-collector:4317}"
     assert collector["command"] == ["--config=/etc/otelcol-contrib/collector.local.yaml"]
     assert "../infra/otel/collector.local.yaml:/etc/otelcol-contrib/collector.local.yaml:ro" in collector["volumes"]
 
@@ -73,8 +74,15 @@ def test_makefile_wires_gateway_targets_and_otelctl_context():
     assert "PYTHONPATH=$(OTELCTL_NATIVE_PYTHONPATH) $(PYTHON) cli/otelctl/src/otelctl.py" in makefile
     assert "scripts/smoke-test-otel.py" in makefile
     assert "AOTEL_SMOKE_TOKEN" in makefile
+    assert "gateway-up:" not in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml up -d --build" not in makefile
     assert "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml exec -T auth-api" not in makefile
+
+
+def test_collector_local_endpoint_is_env_driven_with_native_default():
+    collector_config = (ROOT / "infra/otel/collector.local.yaml").read_text()
+
+    assert "endpoint: ${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}" in collector_config
 
 
 def test_makefile_does_not_create_signoz_managed_network():

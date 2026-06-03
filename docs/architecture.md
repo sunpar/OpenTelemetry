@@ -154,7 +154,7 @@ processors:
     timeout: 5s
 exporters:
   otlp/signoz:
-    endpoint: 127.0.0.1:4317
+    endpoint: ${env:SIGNOZ_OTLP_ENDPOINT:-127.0.0.1:4317}
     tls:
       insecure: true
     sending_queue:

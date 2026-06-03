@@ -1,33 +1,19 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, Request, Response
 
 from agent_otel_auth_core.db import connect, initialize_database
 from agent_otel_auth_core.tokens import validate_token
-from auth_api.gateway import create_gateway_router
+from auth_api.gateway import ManagedHttpForwarder, create_gateway_router
+from auth_api.request_parsing import content_length, original_path
 from auth_api.settings import Settings
-
-
-def _content_length(value: str | None) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-def _original_path(value: str | None) -> str:
-    if not value:
-        return ""
-    return urlsplit(value).path
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
+    gateway_forwarder = ManagedHttpForwarder(app_settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -36,7 +22,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             initialize_database(conn)
         finally:
             conn.close()
-        yield
+        await gateway_forwarder.open()
+        try:
+            yield
+        finally:
+            await gateway_forwarder.close()
 
     app = FastAPI(
         title="Agent OpenTelemetry auth-api",
@@ -65,7 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not token:
             return Response(status_code=401)
 
-        original_path = _original_path(x_original_uri)
+        request_path = original_path(x_original_uri)
         remote_addr = x_telemetry_source_ip
         if remote_addr is None and request.client is not None:
             remote_addr = request.client.host
@@ -75,8 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result = validate_token(
                 conn,
                 token,
-                path=original_path,
-                content_length=_content_length(x_original_content_length),
+                path=request_path,
+                content_length=content_length(x_original_content_length),
                 remote_addr=remote_addr,
             )
         finally:
@@ -87,7 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return Response(status_code=204, headers=result.headers)
 
-    app.include_router(create_gateway_router(settings=app_settings))
+    app.include_router(create_gateway_router(settings=app_settings, forwarder=gateway_forwarder))
 
     return app
 

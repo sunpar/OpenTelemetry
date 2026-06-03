@@ -18,6 +18,7 @@ def test_makefile_defines_documented_entry_points():
         "test",
         "static-check",
         "legacy-compose-config",
+        "compose-config",
         "check",
         "native-up",
         "up",
