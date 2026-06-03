@@ -9,9 +9,12 @@ def content_length(value: str | None) -> int | None:
     if value is None or value == "":
         return None
     try:
-        return int(value)
+        parsed = int(value)
     except ValueError:
         return None
+    if parsed < 0:
+        return None
+    return parsed
 
 
 def bearer_token(request: Request) -> str | None:

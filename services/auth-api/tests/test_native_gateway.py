@@ -16,6 +16,7 @@ from auth_api.gateway import (
     _read_limited_body,
     create_gateway_router,
 )
+from auth_api.request_parsing import content_length
 from auth_api.settings import Settings
 
 
@@ -269,3 +270,27 @@ def test_gateway_ignores_path_query_parameter_injection(tmp_path):
     assert response.status_code == 200
     assert len(forwarded) == 1
     assert forwarded[0].url == "http://collector.example.internal/v1/logs"
+
+
+def test_content_length_parser_rejects_negative_values():
+    assert content_length("-1") is None
+    assert content_length("-100") is None
+    assert content_length("0") == 0
+    assert content_length("1") == 1
+
+
+def test_gateway_returns_401_before_413_when_token_is_missing_and_body_declared_oversized(tmp_path):
+    # Token is checked from the Authorization header before the body is read.
+    # A request that has no token and a declared-oversized Content-Length must
+    # get 401 (not 413) so that unauthenticated callers cannot force body reads.
+    settings, _ = _settings(tmp_path, gateway_max_body_bytes=3)
+
+    client = _client(settings, _never_forward)
+
+    response = client.post(
+        "/v1/logs",
+        headers={"Content-Length": "999"},
+        content=b"x" * 4,
+    )
+
+    assert response.status_code == 401

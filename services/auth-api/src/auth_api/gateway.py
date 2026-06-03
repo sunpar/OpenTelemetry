@@ -128,14 +128,6 @@ def create_gateway_router(
     send = forwarder or _default_forwarder(settings)
 
     async def handle_otlp(path: str, request: Request) -> Response:
-        declared_size = content_length(request.headers.get("content-length"))
-        if declared_size is not None and declared_size > settings.gateway_max_body_bytes:
-            return PlainTextResponse("OTLP payload is too large", status_code=413)
-        try:
-            body = await _read_limited_body(request, max_body_bytes=settings.gateway_max_body_bytes)
-        except PayloadTooLarge:
-            return PlainTextResponse("OTLP payload is too large", status_code=413)
-
         token = bearer_token(request)
         if token is None:
             return Response(status_code=401)
@@ -143,6 +135,14 @@ def create_gateway_router(
         upstream_url = _upstream_url(settings, path)
         if upstream_url is None:
             return PlainTextResponse("OTLP upstream is not configured", status_code=503)
+
+        declared_size = content_length(request.headers.get("content-length"))
+        if declared_size is not None and declared_size > settings.gateway_max_body_bytes:
+            return PlainTextResponse("OTLP payload is too large", status_code=413)
+        try:
+            body = await _read_limited_body(request, max_body_bytes=settings.gateway_max_body_bytes)
+        except PayloadTooLarge:
+            return PlainTextResponse("OTLP payload is too large", status_code=413)
 
         remote_addr = source_ip(request)
         conn = connect(settings.auth_db_path)
