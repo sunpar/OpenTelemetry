@@ -167,8 +167,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--signal-path", action="append", default=list(DEFAULT_SIGNAL_PATHS))
     parser.add_argument("--direct-port", action="append", default=None)
-    parser.add_argument("--skip-direct-port-check", action="store_true")
-    parser.add_argument("--skip-docker-port-check", action="store_true")
+    parser.add_argument(
+        "--check-direct-ports",
+        action="store_true",
+        help="Fail if the configured direct OTLP ports are reachable from this host.",
+    )
+    parser.add_argument(
+        "--check-docker-published-ports",
+        action="store_true",
+        help="Legacy Compose check: fail if Docker publishes direct OTLP ingestion ports.",
+    )
     return parser
 
 
@@ -193,9 +201,9 @@ def run(args: argparse.Namespace) -> int:
     failures: list[str] = []
     failures.extend(check_invalid_tokens(args.endpoint, args.invalid_token, args.signal_path, args.timeout))
     failures.extend(check_valid_log(args.endpoint, token, args.timeout))
-    if not args.skip_direct_port_check:
+    if args.check_direct_ports:
         failures.extend(check_direct_ports(args.direct_port or default_direct_ports(args.endpoint), args.timeout))
-    if not args.skip_docker_port_check:
+    if args.check_docker_published_ports:
         failures.extend(check_docker_published_ports())
 
     if failures:

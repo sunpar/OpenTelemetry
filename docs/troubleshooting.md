@@ -1,7 +1,7 @@
 # Troubleshooting
 
-Use this guide to separate auth failures, ingress routing failures, Collector
-pipeline failures, and SigNoz visibility issues.
+Use this guide to separate token failures, native gateway forwarding failures,
+upstream backend failures, and client telemetry configuration issues.
 
 ## Request Fails With 401
 
@@ -19,14 +19,11 @@ Checks:
 ```sh
 curl -i http://localhost:8088/v1/logs
 curl -i http://localhost:8088/v1/logs -H 'Authorization: Bearer invalid'
-python3 scripts/smoke-test-otel.py --endpoint http://localhost:8088 --token <issued-token>
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 ```
 
-Inspect auth-api logs:
-
-```sh
-docker compose -f compose/docker-compose.gateway.yml logs auth-api
-```
+Inspect the foreground `make native-up` logs or the logs from the process
+supervisor running the FastAPI app.
 
 ## Request Fails With 403
 
@@ -40,14 +37,16 @@ Likely causes:
 Checks:
 
 ```sh
-otelctl tokens list --email alice@example.com
+PYTHONPATH=packages/auth-core/src:cli/otelctl/src \
+  .venv/bin/python cli/otelctl/src/otelctl.py \
+  --db-path ./auth-api.sqlite3 tokens list --email alice@example.com
 ```
 
 Confirm `revoked_at`, `expires_at`, user status, and scopes.
 
 ## Request Fails With 404
 
-Only these paths are allowed:
+Only these OTLP paths are allowed:
 
 ```text
 /v1/logs
@@ -57,80 +56,76 @@ Only these paths are allowed:
 
 Any other path returns 404.
 
-## Request Succeeds But No Identity Fields In SigNoz
+## Request Fails With 413
+
+The payload is larger than `AOTEL_GATEWAY_MAX_BODY_BYTES`. The default is 32 MiB.
+Increase the setting only after confirming the upstream backend can handle the
+same payload size.
+
+## Request Fails With 502 Or 503
 
 Likely causes:
 
-- Nginx did not copy auth response headers.
-- Nginx did not overwrite spoofed client headers.
-- Ingress is trusting client-supplied source IP headers.
-- Collector OTLP/HTTP receiver is missing `include_metadata: true`.
-- Collector resource processor keys do not match header metadata names.
-- The request bypassed ingress and posted directly to the Collector or SigNoz.
-
-Checks:
-
-- Review `infra/nginx/nginx.conf`.
-- Review `infra/otel/collector.local.yaml`.
-- Confirm Collector receives traffic only from ingress.
-- Send a test log through Nginx, not directly to Collector:
-
-  ```sh
-  python3 scripts/send-test-log.py \
-    --endpoint http://localhost:8088 \
-    --token <issued-token>
-  ```
-
-## Request Reaches Collector But Not SigNoz
-
-Likely causes:
-
-- SigNoz is not running.
-- Collector cannot resolve `signoz-otel-collector`.
-- Exporter queue is full.
-- Exporter retries are exhausted.
-- Docker networks are not joined correctly.
+- `AOTEL_OTLP_UPSTREAM` is unset.
+- The upstream URL is wrong.
+- The native Collector or managed OTLP endpoint is down.
+- TLS or proxy settings between FastAPI and the upstream are incorrect.
+- The upstream returned a network error while the gateway was forwarding.
 
 Checks:
 
 ```sh
-docker compose -f compose/docker-compose.gateway.yml logs otel-collector
-docker compose -f compose/docker-compose.gateway.yml ps
+curl -fsS http://localhost:8088/healthz
+printf '%s\n' "$AOTEL_OTLP_UPSTREAM"
+curl -i "$AOTEL_OTLP_UPSTREAM/v1/logs"
 ```
 
-Inspect Collector health metrics and exporter logs.
+The last command may return an auth or content error from the upstream; that is
+still useful because it proves the upstream is reachable.
 
-## SigNoz Collector Logs OpAMP Agent Errors
+## Request Succeeds But Identity Fields Are Wrong
 
-If `signoz-otel-collector` logs `cannot create agent without orgId`, the
-collector is running through the OpAMP manager path before SigNoz has an
-organization id. The local central collector does not start OpAMP manager mode.
+Likely causes:
+
+- The request bypassed the FastAPI gateway and posted directly to the upstream.
+- The backend is reading client-supplied payload attributes instead of trusted
+  gateway metadata.
+- A downstream Collector config is not copying `X-Telemetry-*` headers into
+  resource attributes.
 
 Checks:
 
 ```sh
-docker compose \
-  -f .vendor/signoz/deploy/docker/docker-compose.yaml \
-  -f compose/docker-compose.signoz.override.yml \
-  config | grep -E -- '--manager-config|--copy-path|--config=/etc/otel-collector-config.yaml'
-docker logs signoz-otel-collector 2>&1 | grep -i opamp
+AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 ```
 
-Fix:
+The smoke script sends spoofed `X-Telemetry-*` and `X-Forwarded-For` headers on
+the valid log request. After the smoke run, inspect the backend and confirm:
 
-1. Keep `compose/docker-compose.signoz.override.yml` in the stack and recreate
-   the SigNoz collector container.
-2. Confirm the effective collector command uses
-   `--config=/etc/otel-collector-config.yaml`.
-3. Confirm `--manager-config` and `--copy-path` are absent.
-4. Complete first admin and `Agent Telemetry Trial` org setup in the UI.
-5. See `infra/signoz/README.md` for the current OpAMP status.
+- `telemetry.user.email` matches the issued token owner, not the spoofed header.
+- `telemetry.team.id` matches the issued token team, not the spoofed header.
+- `telemetry.token.id` matches the issued token id, not the spoofed header.
+- `telemetry.source.ip` does not equal the spoofed `X-Forwarded-For` value.
+
+## Backend Shows Data Without User Or Team
+
+Treat this as a security and data quality issue. It means telemetry bypassed the
+trusted identity path or downstream enrichment failed.
+
+Actions:
+
+1. Close direct external access to backend OTLP ingestion.
+2. Route clients only through the FastAPI gateway.
+3. Verify `auth_api.gateway` overwrites `X-Telemetry-*` headers.
+4. If using a native Collector, verify its resource processor maps trusted
+   gateway metadata into resource attributes.
+5. Re-run the smoke test with a valid token.
 
 ## Dashboard Import Does Not Show Data
 
 Import `infra/signoz/dashboards/agent-telemetry-collected-data.signoz.json`
-only after the first SigNoz admin and organization exist. The dashboard title
-is `Agent Telemetry - Collected Data`.
+only after the backend is initialized. The dashboard title is
+`Agent Telemetry - Collected Data`.
 
 Checks:
 
@@ -139,68 +134,26 @@ Checks:
 AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 ```
 
-Then open the dashboard in SigNoz and check the service, user, team, tool, and
+Then open the dashboard and check the service, user, team, tool, and
 capture-profile variables. If panels are empty, confirm the smoke records exist
-in ClickHouse and select `unknown` for older data that predates normalized agent
-attributes.
+in the backend and select `unknown` for older data that predates normalized
+agent attributes.
 
-## Smoke Test Reports Direct Ingestion Port Is Reachable
+## Direct-Port Hardening Checks
 
-The smoke script expects these host ports to be closed:
-
-```text
-127.0.0.1:4318
-127.0.0.1:4317
-<gateway-endpoint-host>:4318
-<gateway-endpoint-host>:4317
-```
-
-It also inspects Docker's published port table and fails when any running
-container publishes `4317` or `4318` to the host. If any direct OTLP port is
-reachable or published, a client may be able to bypass auth-api and Nginx.
-Checks:
+The smoke script can optionally verify that direct OTLP ports are not reachable
+from the current host:
 
 ```sh
-docker compose -f compose/docker-compose.gateway.yml ps
-docker ps --format '{{.Names}} {{.Ports}}' | grep -E '4317|4318'
+AOTEL_SMOKE_TOKEN=<issued-token> \
+  .venv/bin/python scripts/smoke-test-otel.py \
+  --endpoint http://localhost:8088 \
+  --check-direct-ports
 ```
 
-Fixes:
-
-1. Remove host-published `4317` or `4318` mappings from local Compose
-   overrides.
-2. Keep Collector OTLP/HTTP exposed only on the Docker network.
-3. Keep SigNoz ingestion reachable only from the gateway Collector network.
-4. Re-run `AOTEL_SMOKE_TOKEN=<issued-token> make smoke`.
-
-## Smoke Test Passes But Spoofed Headers Need Confirmation
-
-The smoke script sends spoofed `X-Telemetry-*` and `X-Forwarded-For` headers on
-the valid log request, but it does not mark header overwrite as verified unless
-the final enriched resource attributes are inspected in SigNoz or another
-authoritative backend. After `make smoke`, check the smoke log in SigNoz and
-confirm:
-
-- `telemetry.user.email` matches the issued token owner, not the spoofed header
-- `telemetry.team.id` matches the issued token team, not the spoofed header
-- `telemetry.token.id` matches the issued token id, not the spoofed header
-- `telemetry.source.ip` does not equal the spoofed `X-Forwarded-For` value
-
-## SigNoz Shows Data Without User Or Team
-
-Treat this as a security and data quality issue. It means telemetry bypassed the
-trusted identity path or enrichment failed.
-
-Actions:
-
-1. Close direct external access to SigNoz OTLP ports.
-2. Close direct external access to Collector OTLP ports.
-3. Verify Nginx overwrites `X-Telemetry-*` headers.
-4. Verify Collector `resource/tenant_from_headers` processor is in every signal
-   pipeline.
-5. Verify `telemetry.source.ip` comes from ingress-controlled source IP logic,
-   not from arbitrary client `X-Forwarded-For`.
-6. Re-run the smoke test with a valid token.
+Use this in production-like environments. For local development, a native
+Collector may intentionally listen on `127.0.0.1:4318`, so the check is not part
+of the default smoke target.
 
 ## Codex Does Not Emit Telemetry
 
@@ -216,7 +169,7 @@ Checks:
 - Confirm the installer did not overwrite unrelated Codex config.
 
 Re-verify Codex telemetry config against the installed CLI and official Codex
-docs before shipping the installer.
+docs before shipping installer changes.
 
 ## Claude Code Does Not Emit Telemetry
 
@@ -245,15 +198,15 @@ Actions:
 2. Reduce max-capture users.
 3. Review retention settings.
 4. Review dashboards for expensive group-bys.
-5. Check Collector queue metrics and ingress logs.
+5. Check upstream request volume, latency, and storage growth.
 
 ## Token Revocation Does Not Take Effect
 
-Check opaque tokens server-side on every request. If revoked tokens continue to
-work:
+Tokens are checked server-side on every gateway request. If revoked tokens
+continue to work:
 
-- Confirm Nginx calls `/_auth` on every OTLP path.
+- Confirm clients are sending telemetry through the FastAPI gateway.
 - Confirm auth-api reads current DB state for every validation.
-- Confirm there is no success cache at ingress.
+- Confirm there is no success cache in a parent FastAPI app or upstream proxy.
 - Confirm the client is not using a different valid token.
 - Confirm audit rows show the expected token id.

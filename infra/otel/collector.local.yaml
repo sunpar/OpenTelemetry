@@ -56,7 +56,7 @@ processors:
 
 exporters:
   otlp/signoz:
-    endpoint: signoz-otel-collector:4317
+    endpoint: 127.0.0.1:4317
     tls:
       insecure: true
     sending_queue:

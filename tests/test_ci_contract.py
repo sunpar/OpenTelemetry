@@ -17,7 +17,6 @@ def test_ci_workflow_covers_core_validation_paths():
     assert set(workflow["jobs"]) == {
         "python-tests",
         "static-validation",
-        "compose-validation",
     }
     static_checkout = workflow["jobs"]["static-validation"]["steps"][0]
     assert static_checkout["uses"] == "actions/checkout@v4"
@@ -30,14 +29,14 @@ def test_ci_workflow_covers_core_validation_paths():
         "python -m pytest -q",
         "python scripts/check-docs.py",
         "git diff --check",
-        "bash scripts/check-signoz-compose-config.sh",
         "fetch-depth: 0",
         "origin/${GITHUB_BASE_REF}...HEAD",
         "${{ github.event.before }}",
-        "docker compose -f compose/docker-compose.gateway.yml config",
-        "docker compose -f compose/docker-compose.signoz.yml config",
     ]:
         assert expected in rendered
+
+    assert "docker compose" not in rendered
+    assert "compose-validation" not in rendered
 
 
 def test_dev_requirements_install_local_packages_and_test_tools():
@@ -70,13 +69,14 @@ def test_makefile_exposes_local_validation_contract():
         "$(PYTHON) scripts/check-docs.py",
         "git diff --check",
         "git diff --cached --check",
-        "compose-config:",
-        "$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null",
-        "$(DOCKER_COMPOSE) -f compose/docker-compose.signoz.yml config >/dev/null",
-        "bash scripts/check-signoz-compose-config.sh",
-        "check: lint test static-check compose-config",
+        "native-up:",
+        "$(PYTHON) -m uvicorn auth_api.app:app",
+        "legacy-compose-config:",
+        "check: lint test static-check",
     ]:
         assert expected in makefile
+
+    assert "check: lint test static-check compose-config" not in makefile
 
 
 def test_docs_checker_runs_static_validation():

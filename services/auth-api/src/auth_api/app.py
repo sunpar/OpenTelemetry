@@ -7,6 +7,7 @@ from fastapi import FastAPI, Header, Request, Response
 
 from agent_otel_auth_core.db import connect, initialize_database
 from agent_otel_auth_core.tokens import validate_token
+from auth_api.gateway import create_gateway_router
 from auth_api.settings import Settings
 
 
@@ -85,6 +86,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return Response(status_code=result.status_code)
 
         return Response(status_code=204, headers=result.headers)
+
+    app.include_router(create_gateway_router(settings=app_settings))
 
     return app
 

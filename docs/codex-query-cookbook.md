@@ -482,10 +482,9 @@ in the auth-api SQLite database.
 List a user's tokens without exposing token secrets:
 
 ```sh
-docker compose -f compose/docker-compose.gateway.yml exec -T auth-api \
-  env PYTHONPATH=/workspace/packages/auth-core/src:/workspace/cli/otelctl/src \
-  python /workspace/cli/otelctl/src/otelctl.py \
-  --db-path /data/auth-api.sqlite3 \
+PYTHONPATH=packages/auth-core/src:cli/otelctl/src \
+  .venv/bin/python cli/otelctl/src/otelctl.py \
+  --db-path ./auth-api.sqlite3 \
   tokens list --email alice@example.com
 ```
 

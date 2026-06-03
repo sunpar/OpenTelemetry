@@ -16,22 +16,27 @@ POST https://otel.yourcompany.com/v1/metrics
 Authorization: Bearer <per-user-token>
 ```
 
-The gateway authenticates each request, injects trusted identity headers, copies
-those headers into OpenTelemetry resource attributes, normalizes agent fields,
-and exports the result to SigNoz. Every event, span, and metric is tagged by
-user, team, token, and tool.
+The native FastAPI gateway authenticates each request, overwrites any spoofed
+client identity headers with trusted token metadata, and forwards OTLP/HTTP to a
+configured upstream collector or observability backend. Every event, span, and
+metric can be attributed by user, team, token, and tool without running Docker
+as part of this repository's runtime.
 
 ## Planned Developer Path
 
 Milestone 1 target local trial path:
 
 ```sh
-make signoz-up
-make up
+make install-dev PYTHON=.venv/bin/python
+AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up PYTHON=.venv/bin/python
 make user EMAIL=alice@example.com TEAM=quant-dev
 make token EMAIL=alice@example.com
 make smoke TOKEN=<issued-token>
 ```
+
+`AOTEL_OTLP_UPSTREAM` must point at a native OpenTelemetry Collector, managed
+OTLP endpoint, or separately operated SigNoz ingest endpoint. This repository no
+longer requires Docker images for its runtime.
 
 The token command prints Codex and Claude Code snippets so teammates do not have
 to assemble OpenTelemetry settings by hand.
@@ -57,9 +62,8 @@ agent-otel-trial/
   justfile
   .env.example
   compose/
-    docker-compose.gateway.yml
-    docker-compose.signoz.yml
-    docker-compose.warehouse.yml
+    docker-compose.gateway.yml        # legacy reference only
+    docker-compose.signoz.yml         # legacy reference only
   infra/
     nginx/
       nginx.conf
@@ -126,6 +130,7 @@ agent-otel-trial/
 
 ## Current Status
 
-This repository contains the documentation and implementation contract. The next
-step is Milestone 1: local end-to-end ingestion with SigNoz, auth-api, Nginx
-auth ingress, OpenTelemetry Collector, and a smoke test.
+This repository contains a native FastAPI auth and OTLP gateway runtime,
+operator CLI, onboarding installers, dashboard/query references, and legacy
+Compose files retained for comparison. The default build, test, and runtime
+paths do not require Docker.

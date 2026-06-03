@@ -1,6 +1,6 @@
 # Architecture Index
 
-Last updated: 2026-05-28
+Last updated: 2026-06-02
 
 ## Canonical Docs
 
@@ -27,8 +27,9 @@ Last updated: 2026-05-28
 ## Package And Test Status
 
 The repository has Python package metadata for `auth-api` and `otelctl`, a
-root `requirements-dev.txt`, Docker Compose contracts, pytest coverage, Ruff
-linting, static validation scripts, and GitHub Actions CI. See
+native FastAPI OTLP gateway, root `requirements-dev.txt`, legacy Docker Compose
+reference contracts, pytest coverage, Ruff linting, static validation scripts,
+and GitHub Actions CI. See
 `test-commands.md` for current local and CI verification commands.
 
 ## Runtime Boundaries
@@ -48,21 +49,22 @@ Contract:
 - normal onboarding is content-minimal
 - max capture is opt-in and token-scoped
 
-### Authenticated Ingress
+### Native FastAPI Gateway
 
 Files:
 
-- `infra/nginx/nginx.conf`
-- optional Caddy alternative later
+- `services/auth-api/src/auth_api/gateway.py`
+- `services/auth-api/src/auth_api/app.py`
 
 Contract:
 
 - accept only `/v1/logs`, `/v1/traces`, and `/v1/metrics`
-- call `auth-api` using subrequest auth
+- validate bearer tokens with shared auth-core logic
 - preserve OTLP payload bodies
 - overwrite spoofed `X-Telemetry-*` headers
 - derive `X-Telemetry-Source-Ip` from socket or trusted proxy chain
-- keep Collector and SigNoz ingestion ports internal
+- forward to `AOTEL_OTLP_UPSTREAM`
+- keep backend ingestion ports private
 
 ### auth-api
 
@@ -75,6 +77,7 @@ Files:
 - `services/auth-api/src/settings.py`
 - `services/auth-api/src/auth_api/app.py`
 - `services/auth-api/src/auth_api/settings.py`
+- `services/auth-api/src/auth_api/gateway.py`
 - `services/auth-api/tests/`
 - `packages/auth-core/src/agent_otel_auth_core/`
 
@@ -101,7 +104,7 @@ Contract:
 - token issuance prints Codex and Claude Code snippets
 - no public admin UI in v1
 
-### OpenTelemetry Collector Gateway
+### Optional Native OpenTelemetry Collector
 
 Files:
 
@@ -111,12 +114,12 @@ Files:
 
 Contract:
 
-- use `otel/opentelemetry-collector-contrib`
+- use a native `otelcol-contrib` install when a Collector is needed
 - OTLP/HTTP receiver with `include_metadata: true`
 - resource enrichment from trusted headers
 - `agent.tool` normalization
 - memory limiter, batch processor, sending queue, and retry-on-failure
-- export to internal SigNoz OTLP/gRPC endpoint
+- export to a private backend OTLP/gRPC endpoint
 
 ### SigNoz
 
@@ -128,9 +131,9 @@ Files:
 
 Contract:
 
-- v1 backend for logs, traces, metrics, dashboards, and alerts
+- optional backend for logs, traces, metrics, dashboards, and alerts
 - ClickHouse-backed storage through SigNoz
-- OTLP ingestion ports internal only
+- OTLP ingestion ports private
 - retention configured deliberately
 
 ## Data Contracts
@@ -179,8 +182,8 @@ analytics or archival requirement appears.
 
 ## Milestone Boundaries
 
-1. Local end-to-end ingestion: Compose, auth-api, Nginx, Collector, SigNoz docs,
-   smoke test.
+1. Local end-to-end ingestion: native FastAPI auth/gateway, upstream forwarding,
+   backend docs, smoke test.
 2. Codex onboarding: installer, template, docs, dashboard.
 3. Claude Code onboarding: installer, default env, max-capture env, dashboard.
 4. Storage guardrails: retention, queue/retry settings, ingest volume dashboard,
@@ -190,12 +193,12 @@ analytics or archival requirement appears.
 
 ## Implementation Safety Notes
 
-- Do not expose unauthenticated Collector or SigNoz ingestion.
+- Do not expose unauthenticated backend ingestion.
 - Do not trust client-supplied identity or source-IP headers.
 - Do not store OTLP request bodies in auth audit records.
 - Do not enable prompt, tool-content, or raw API body capture in normal
   onboarding.
-- Do not add a custom OTLP parser/proxy in v1.
+- Do not add a custom OTLP parser in v1.
 - Do not add SSO, public admin UI, S3 archive, or duplicate warehouse before
   the MVP contracts are satisfied.
 
@@ -203,6 +206,5 @@ analytics or archival requirement appears.
 
 - No deployment environment or TLS termination layer is implemented.
 - No dashboard JSON schema has been validated against SigNoz yet.
-- No Collector config has been run through a Collector binary yet.
-- CI validates unit, static, and Compose contracts, but does not start the full
-  SigNoz stack.
+- No Collector config has been run through a native Collector binary yet.
+- CI validates unit and static contracts, but does not start a live backend.

@@ -1,20 +1,21 @@
 # Test Commands
 
-Last updated: 2026-05-28
+Last updated: 2026-06-02
 
 ## Current Test Status
 
-The repository has runnable Python packages, Compose contracts, installer
-scripts, dashboard JSON, and GitHub Actions CI.
+The repository has runnable Python packages, a native FastAPI auth/gateway
+runtime, legacy Compose reference contracts, installer scripts, dashboard JSON,
+and GitHub Actions CI.
 
 Latest local baseline for the merged implementation:
 
 ```text
-98 passed, 1 skipped
+107 passed, 1 skipped
 ```
 
 The skipped test is the opt-in live gateway smoke test, which requires a
-running local Compose stack and a real issued token.
+running gateway and a real issued token.
 
 ## Local Setup
 
@@ -43,9 +44,6 @@ Makefile
 requirements-dev.txt
 packages/auth-core/pyproject.toml
 cli/otelctl/pyproject.toml
-compose/docker-compose.gateway.yml
-compose/docker-compose.signoz.override.yml
-compose/docker-compose.signoz.yml
 services/auth-api/pyproject.toml
 .github/workflows/ci.yml
 ```
@@ -80,14 +78,16 @@ git diff --cached --check
 - SigNoz dashboard JSON
 - shell syntax for `scripts/*.sh`
 
-Validate Compose contracts:
+Validate legacy Compose contracts only when reviewing old Docker reference
+files:
 
 ```sh
-make compose-config
+make legacy-compose-config
 ```
 
-`make compose-config` validates the gateway compose file, the SigNoz wrapper,
-and the SigNoz upstream compose plus safe override path used by `make signoz-up`.
+`make legacy-compose-config` validates the gateway compose file, the SigNoz
+wrapper, and the SigNoz upstream compose plus safe override path. It is not part
+of the default runtime or `make check`.
 
 ## Targeted Test Commands
 
@@ -98,7 +98,6 @@ make install-dev PYTHON=.venv/bin/python
 make lint PYTHON=.venv/bin/python
 make test PYTHON=.venv/bin/python
 make static-check PYTHON=.venv/bin/python
-make compose-config
 make check PYTHON=.venv/bin/python
 ```
 
@@ -108,7 +107,13 @@ Auth domain and `otelctl` behavior:
 .venv/bin/python -m pytest services/auth-api/tests cli/otelctl/tests -q
 ```
 
-Gateway, Collector, and SigNoz config:
+Native gateway behavior:
+
+```sh
+.venv/bin/python -m pytest services/auth-api/tests/test_native_gateway.py -q
+```
+
+Legacy gateway, Collector, and SigNoz config:
 
 ```sh
 .venv/bin/python -m pytest \
@@ -137,22 +142,11 @@ CI contract checks:
 
 ## Compose Verification
 
-Validate the local gateway stack:
-
-```sh
-docker compose -f compose/docker-compose.gateway.yml config
-```
-
-Validate the lightweight SigNoz wrapper contract:
+These checks are for legacy reference files only and require Docker:
 
 ```sh
 docker compose -f compose/docker-compose.signoz.yml config
-```
-
-Validate the SigNoz override against a real upstream compose file after the
-pinned SigNoz checkout exists:
-
-```sh
+docker compose -f compose/docker-compose.gateway.yml config
 docker compose \
   -f .vendor/signoz/deploy/docker/docker-compose.yaml \
   -f compose/docker-compose.signoz.override.yml \
@@ -179,26 +173,21 @@ bash -n templates/claude.max-capture.env
 
 ## Live Milestone Verification
 
-These checks require Docker and a running local stack:
+These checks require a running native FastAPI gateway and a real issued token:
 
 ```sh
-make signoz-up
-make up
+AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up
 make user EMAIL=alice@example.com TEAM=quant-dev
 make token EMAIL=alice@example.com
 AOTEL_SMOKE_TOKEN=<issued-token> make smoke
 curl -i http://localhost:8088/v1/logs -H 'Authorization: Bearer invalid'
 curl -fsS http://localhost:8088/healthz
-docker compose -f compose/docker-compose.gateway.yml ps
-docker compose -f compose/docker-compose.gateway.yml logs -f auth-api
-docker compose -f compose/docker-compose.gateway.yml logs -f nginx
-docker compose -f compose/docker-compose.gateway.yml logs -f otel-collector
 ```
 
 The live smoke test also supports:
 
 ```sh
-AOTEL_RUN_COMPOSE_SMOKE=1 AOTEL_SMOKE_TOKEN=<issued-token> \
+AOTEL_RUN_NATIVE_SMOKE=1 AOTEL_SMOKE_TOKEN=<issued-token> \
   .venv/bin/python -m pytest tests/test_aotel009_smoke_scripts.py -q
 ```
 
@@ -235,7 +224,6 @@ CI currently runs:
 - `pytest`
 - docs, dashboard JSON, and shell syntax checks
 - `git diff --check` against the committed PR or push range
-- Docker Compose config validation for gateway and SigNoz wrapper files
 
 CI intentionally does not start the full SigNoz stack or run live telemetry
 smoke tests yet; those remain manual milestone checks until the stack startup
