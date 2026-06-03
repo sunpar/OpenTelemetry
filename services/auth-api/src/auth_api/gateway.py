@@ -167,6 +167,9 @@ def create_gateway_router(
         )
 
     def _make_endpoint(path: str):
+        # Return a handler that closes over `path` so FastAPI does not treat it
+        # as a query-parameter dependency (which would allow callers to override
+        # the OTLP path via ?path=...).
         async def endpoint(request: Request) -> Response:
             return await handle_otlp(path, request)
 
