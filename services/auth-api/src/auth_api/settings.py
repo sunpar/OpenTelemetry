@@ -15,6 +15,14 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("AOTEL_OTLP_UPSTREAM", "OTLP_UPSTREAM", "otlp_upstream"),
     )
+    otlp_upstream_authorization: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "AOTEL_OTLP_UPSTREAM_AUTHORIZATION",
+            "OTLP_UPSTREAM_AUTHORIZATION",
+            "otlp_upstream_authorization",
+        ),
+    )
     gateway_max_body_bytes: int = Field(
         default=32 * 1024 * 1024,
         validation_alias=AliasChoices("AOTEL_GATEWAY_MAX_BODY_BYTES", "gateway_max_body_bytes"),
@@ -42,4 +50,16 @@ class Settings(BaseSettings):
             raise ValueError("AOTEL_OTLP_UPSTREAM must not include query or fragment")
         if parts.path in {"/v1/logs", "/v1/traces", "/v1/metrics"}:
             raise ValueError("AOTEL_OTLP_UPSTREAM must be a base URL; the gateway appends OTLP signal paths")
+        return normalized
+
+    @field_validator("otlp_upstream_authorization")
+    @classmethod
+    def validate_otlp_upstream_authorization(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if normalized == "":
+            return None
+        if "\r" in normalized or "\n" in normalized:
+            raise ValueError("AOTEL_OTLP_UPSTREAM_AUTHORIZATION must be a single HTTP header value")
         return normalized

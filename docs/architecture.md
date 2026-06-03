@@ -68,6 +68,10 @@ For production, terminate TLS before traffic reaches the FastAPI app or run the
 app behind an existing non-Docker load balancer. If a native Collector is used,
 install `otelcol-contrib` through the host package manager or release binary and
 point `AOTEL_OTLP_UPSTREAM` at its OTLP/HTTP listener.
+For managed OTLP backends that require ingestion credentials, set
+`AOTEL_OTLP_UPSTREAM_AUTHORIZATION` to the backend `Authorization` header value.
+The gateway authenticates per-user bearer tokens locally and sends only this
+configured upstream credential to the backend.
 
 ### SigNoz
 
@@ -81,6 +85,8 @@ goes through the authenticated FastAPI gateway.
 - External clients can provide `Authorization` and OTLP transport headers only.
 - External clients cannot be trusted for `X-Telemetry-*` identity headers.
 - The FastAPI gateway must overwrite identity headers before forwarding.
+- The FastAPI gateway must not forward per-user bearer tokens to upstream OTLP
+  backends.
 - The FastAPI gateway derives source IP from the request socket or hosting
   platform. Do not trust client-supplied `X-Forwarded-For` directly.
 - Upstream enrichment must use trusted gateway metadata, not client payload

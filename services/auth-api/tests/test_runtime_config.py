@@ -38,6 +38,23 @@ def test_otlp_upstream_treats_empty_string_as_unset():
     assert settings.otlp_upstream is None
 
 
+def test_otlp_upstream_authorization_trims_configured_header_value():
+    settings = Settings(otlp_upstream_authorization="  Bearer upstream-secret  ")
+
+    assert settings.otlp_upstream_authorization == "Bearer upstream-secret"
+
+
+def test_otlp_upstream_authorization_treats_empty_string_as_unset():
+    settings = Settings(otlp_upstream_authorization="")
+
+    assert settings.otlp_upstream_authorization is None
+
+
+def test_otlp_upstream_authorization_rejects_multiple_header_lines():
+    with pytest.raises(ValidationError):
+        Settings(otlp_upstream_authorization="Bearer one\nAuthorization: Bearer two")
+
+
 @pytest.mark.parametrize(
     "value",
     [

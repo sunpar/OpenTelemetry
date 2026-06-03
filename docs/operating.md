@@ -124,6 +124,9 @@ own telemetry endpoint. The FastAPI gateway itself does not require a Collector
 process when `AOTEL_OTLP_UPSTREAM` points directly at a managed backend.
 `AOTEL_OTLP_UPSTREAM` must be a base URL; the gateway appends `/v1/logs`,
 `/v1/traces`, or `/v1/metrics` for each request.
+If the managed backend requires an ingestion credential, set
+`AOTEL_OTLP_UPSTREAM_AUTHORIZATION` to the backend `Authorization` header value.
+Do not reuse per-user gateway bearer tokens for upstream ingestion.
 
 ## Dashboard Import
 

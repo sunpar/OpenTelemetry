@@ -8,6 +8,7 @@ endif
 
 AOTEL_PUBLIC_ENDPOINT ?= http://localhost:8088
 AOTEL_OTLP_UPSTREAM ?=
+AOTEL_OTLP_UPSTREAM_AUTHORIZATION ?=
 AUTH_API_DB_PATH ?= ./auth-api.sqlite3
 AUTH_API_HOST ?= $(GATEWAY_HOST)
 AUTH_API_PORT ?= $(GATEWAY_PORT)
@@ -27,7 +28,7 @@ TOKEN_CAPTURE_PROFILE ?= $(PROFILE)
 AUTH_API_NATIVE_PYTHONPATH := packages/auth-core/src:services/auth-api/src
 OTELCTL_NATIVE_PYTHONPATH := packages/auth-core/src:cli/otelctl/src
 
-export AOTEL_OTLP_UPSTREAM AUTH_API_DB_PATH AUTH_API_HOST AUTH_API_PORT GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
+export AOTEL_OTLP_UPSTREAM AOTEL_OTLP_UPSTREAM_AUTHORIZATION AUTH_API_DB_PATH AUTH_API_HOST AUTH_API_PORT GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
 .PHONY: help install-dev lint test static-check legacy-compose-config compose-config check native-up up down user token smoke install-codex install-claude
 
@@ -50,6 +51,7 @@ help:
 	@printf '%s\n' '  make check            Run lint, tests, and static checks.'
 	@printf '%s\n' '  AOTEL_OTLP_UPSTREAM=... make native-up'
 	@printf '%s\n' '                       Start the native FastAPI auth/gateway runtime.'
+	@printf '%s\n' '                       Optional: set AOTEL_OTLP_UPSTREAM_AUTHORIZATION for managed backends.'
 	@printf '%s\n' '  make up              Alias for native-up.'
 	@printf '%s\n' '  make down            Explain how to stop the foreground native runtime.'
 	@printf '%s\n' '  make legacy-compose-config'

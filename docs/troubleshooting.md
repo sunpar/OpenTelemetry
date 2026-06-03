@@ -69,6 +69,7 @@ Likely causes:
 - `AOTEL_OTLP_UPSTREAM` is unset.
 - The upstream URL is wrong.
 - The native Collector or managed OTLP endpoint is down.
+- The managed OTLP endpoint requires `AOTEL_OTLP_UPSTREAM_AUTHORIZATION`.
 - TLS or proxy settings between FastAPI and the upstream are incorrect.
 - The upstream returned a network error while the gateway was forwarding.
 
@@ -77,6 +78,7 @@ Checks:
 ```sh
 curl -fsS http://localhost:8088/healthz
 printf '%s\n' "$AOTEL_OTLP_UPSTREAM"
+test -n "$AOTEL_OTLP_UPSTREAM_AUTHORIZATION" && printf '%s\n' 'upstream authorization configured'
 curl -i "$AOTEL_OTLP_UPSTREAM/v1/logs"
 ```
 

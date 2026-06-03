@@ -18,6 +18,10 @@ CLIENT_HEADER_ALLOWLIST = ("Content-Type", "Content-Encoding", "Accept", "User-A
 RESPONSE_HEADER_ALLOWLIST = ("Content-Type",)
 
 
+class PayloadTooLarge(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class ForwardRequest:
     method: str
@@ -40,12 +44,15 @@ def _forward_headers(
     *,
     trusted_headers: Mapping[str, str],
     source_ip: str | None,
+    upstream_authorization: str | None,
 ) -> dict[str, str]:
     headers: dict[str, str] = {}
     for name in CLIENT_HEADER_ALLOWLIST:
         value = request.headers.get(name)
         if value:
             headers[name] = value
+    if upstream_authorization:
+        headers["Authorization"] = upstream_authorization
     headers.update(trusted_headers)
     if source_ip:
         headers["X-Telemetry-Source-Ip"] = source_ip
@@ -71,6 +78,17 @@ def _default_forwarder(settings: Settings) -> Forwarder:
         return response.status_code, response.headers, response.content
 
     return forward
+
+
+async def _read_limited_body(request: Request, *, max_body_bytes: int) -> bytes:
+    body = bytearray()
+    async for chunk in request.stream():
+        if not chunk:
+            continue
+        if len(body) + len(chunk) > max_body_bytes:
+            raise PayloadTooLarge
+        body.extend(chunk)
+    return bytes(body)
 
 
 class ManagedHttpForwarder:
@@ -116,8 +134,12 @@ def create_gateway_router(
     send = forwarder or _default_forwarder(settings)
 
     async def handle_otlp(path: str, request: Request) -> Response:
-        body = await request.body()
-        if len(body) > settings.gateway_max_body_bytes:
+        declared_size = content_length(request.headers.get("content-length"))
+        if declared_size is not None and declared_size > settings.gateway_max_body_bytes:
+            return PlainTextResponse("OTLP payload is too large", status_code=413)
+        try:
+            body = await _read_limited_body(request, max_body_bytes=settings.gateway_max_body_bytes)
+        except PayloadTooLarge:
             return PlainTextResponse("OTLP payload is too large", status_code=413)
 
         token = bearer_token(request)
@@ -135,7 +157,7 @@ def create_gateway_router(
                 conn,
                 token,
                 path=path,
-                content_length=content_length(request.headers.get("content-length")) or len(body),
+                content_length=declared_size or len(body),
                 remote_addr=remote_addr,
             )
         finally:
@@ -153,6 +175,7 @@ def create_gateway_router(
                         request,
                         trusted_headers=result.headers or {},
                         source_ip=remote_addr,
+                        upstream_authorization=settings.otlp_upstream_authorization,
                     ),
                     body=body,
                 )
