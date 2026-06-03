@@ -166,10 +166,13 @@ def create_gateway_router(
             headers=_response_headers(headers),
         )
 
-    for otlp_path in OTLP_PATHS:
-        async def otlp_endpoint(request: Request, path: str = otlp_path) -> Response:
+    def _make_endpoint(path: str):
+        async def endpoint(request: Request) -> Response:
             return await handle_otlp(path, request)
 
-        router.add_api_route(otlp_path, otlp_endpoint, methods=["POST"])
+        return endpoint
+
+    for otlp_path in OTLP_PATHS:
+        router.add_api_route(otlp_path, _make_endpoint(otlp_path), methods=["POST"])
 
     return router

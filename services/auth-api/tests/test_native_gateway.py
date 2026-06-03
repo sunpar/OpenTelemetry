@@ -189,3 +189,26 @@ def test_managed_forwarder_reuses_client_and_closes(monkeypatch):
     assert len(instances) == 1
     assert len(instances[0].requests) == 2
     assert instances[0].closed is True
+
+
+def test_gateway_ignores_path_query_parameter_injection(tmp_path):
+    """A ?path= query parameter must not override the route's fixed OTLP path."""
+    settings, conn = _settings(tmp_path)
+    _, issued = _issue(conn, capture_profile="max")
+    forwarded = []
+
+    async def forwarder(request: ForwardRequest):
+        forwarded.append(request)
+        return 200, {}, b""
+
+    client = _client(settings, forwarder)
+
+    response = client.post(
+        "/v1/logs?path=/v1/traces",
+        headers={"Authorization": f"Bearer {issued.token}"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 200
+    assert len(forwarded) == 1
+    assert forwarded[0].url == "http://collector.example.internal/v1/logs"

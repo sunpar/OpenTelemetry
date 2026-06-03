@@ -35,6 +35,17 @@ The installed Codex config observed locally has:
 
 ## Runtime Data Flow
 
+**Native runtime** (`make native-up` / default):
+
+```mermaid
+flowchart LR
+  Codex["Codex CLI / app server"] -->|"OTLP/HTTP + Bearer"| Auth["auth-api :8088"]
+  Auth -->|"validate token"| SQLite["auth-api SQLite"]
+  Auth -->|"OTLP payload + X-Telemetry-* headers"| Upstream["AOTEL_OTLP_UPSTREAM"]
+```
+
+**Legacy Compose runtime** (`make legacy-compose-config`):
+
 ```mermaid
 flowchart LR
   Codex["Codex CLI / app server"] -->|"OTLP/HTTP logs"| Nginx["Nginx :8088"]
@@ -150,7 +161,7 @@ tables and map columns rather than strict foreign keys.
 | `X-Telemetry-Team` | `telemetry.team.id` | `users.team_id` |
 | `X-Telemetry-Token-Id` | `telemetry.token.id` | `tokens.id` |
 | `X-Telemetry-Capture-Profile` | `agent.capture.profile` | `tokens.capture_profile` |
-| `X-Telemetry-Source-Ip` | `telemetry.source.ip` | Nginx source IP handling |
+| `X-Telemetry-Source-Ip` | `telemetry.source.ip` | `request.client.host` (native runtime) or Nginx `$remote_addr` (legacy Compose) |
 
 The Collector also sets `service.namespace = "agent-otel"`.
 
