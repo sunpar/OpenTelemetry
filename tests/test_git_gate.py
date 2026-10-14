@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from pytest_socket import SocketConnectBlockedError
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,11 @@ def repository(tmp_path, monkeypatch):
         shutil.copy2(ROOT / name, root / name)
     for name in ["packages", "services", "cli"]:
         shutil.copytree(ROOT / name, root / name, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
-    (root / "Makefile").write_text("check smoke-check:\n\t$(PYTHON) verify_fixture.py\n")
+    (root / "Makefile").write_text(
+        "check smoke-check:\n\t$(PYTHON) verify_fixture.py\n"
+        f"verify:\n\t{sys.executable} {SCRIPT} check HEAD $(or $(SUITE),check)\n"
+        "legacy-compose-config:\n\t@true\n"
+    )
     (root / "verify_fixture.py").write_text(
         "import importlib.util, os\n"
         "from pathlib import Path\n"
@@ -213,6 +218,18 @@ def test_pr_wrapper_pushes_verified_commit_and_assigns_author(repository):
     assert created[created.index("--head") + 1] == "topic"
     assert created[created.index("--repo") + 1] == "owner/otel"
     assert created[created.index("--assignee") + 1] == "@me"
+
+
+def test_hosted_full_choice_runs_snapshot_verification(repository):
+    root, _ = repository
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    step = next(step for step in workflow["jobs"]["verification"]["steps"]
+                if step.get("name") == "Verify selected commit")
+    result = subprocess.run(["bash", "-c", step["run"]], cwd=root,
+                            env={**os.environ, **{name: "full" for name in step["env"]}}, text=True,
+                            capture_output=True, check=False, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "verified snapshot source" in result.stdout
 
 
 @pytest.mark.parametrize("args", [["--head", "other"], ["--repo=other/repo"], ["--web"], ["-dt", "title"]])

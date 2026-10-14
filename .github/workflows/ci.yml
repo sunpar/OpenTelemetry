@@ -42,9 +42,9 @@ jobs:
 
       - name: Verify selected commit
         env:
-          SUITE: ${{ inputs.suite }}
+          CHECK_SELECTION: ${{ inputs.suite }}
         run: |
-          case "$SUITE" in
+          case "$CHECK_SELECTION" in
             full) make verify && make legacy-compose-config ;;
             smoke) make verify SUITE=smoke-check ;;
             coverage) make verify SUITE=coverage && make legacy-compose-config ;;
