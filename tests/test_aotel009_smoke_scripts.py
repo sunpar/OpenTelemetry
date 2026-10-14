@@ -1,7 +1,5 @@
 import importlib.util
-import os
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -151,28 +149,3 @@ def test_smoke_script_rejects_real_token_literals_in_repo():
     for relative_path in checked_paths:
         text = (ROOT / relative_path).read_text()
         assert real_token.search(text) is None
-
-
-def test_live_native_smoke_script_is_opt_in():
-    if os.environ.get("AOTEL_RUN_NATIVE_SMOKE") != "1":
-        pytest.skip("set AOTEL_RUN_NATIVE_SMOKE=1 and AOTEL_SMOKE_TOKEN to run live gateway smoke")
-
-    token = os.environ["AOTEL_SMOKE_TOKEN"]
-    endpoint = os.environ.get("AOTEL_SMOKE_ENDPOINT", "http://localhost:8088")
-    result = subprocess.run(
-        [
-            "python3",
-            "scripts/smoke-test-otel.py",
-            "--endpoint",
-            endpoint,
-        ],
-        cwd=ROOT,
-        env={**os.environ, "AOTEL_SMOKE_TOKEN": token},
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=30,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr

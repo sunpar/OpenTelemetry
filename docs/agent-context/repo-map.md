@@ -24,7 +24,7 @@ Current package, build, and validation files:
   gateway reference.
 - `compose/docker-compose.signoz.yml`: SigNoz wrapper metadata.
 - `compose/docker-compose.signoz.override.yml`: safe local SigNoz bindings.
-- `.github/workflows/ci.yml`: Python and static validation.
+- `.github/workflows/ci.yml`: manual Python, static, and legacy Compose validation.
 
 ## Current File Tree
 

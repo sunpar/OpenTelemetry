@@ -96,7 +96,7 @@ def check_dashboard_json() -> list[str]:
 
 def check_shell_syntax() -> list[str]:
     failures: list[str] = []
-    for path in sorted((ROOT / "scripts").glob("*.sh")):
+    for path in sorted([*(ROOT / "scripts").glob("*.sh"), *(ROOT / ".githooks").glob("*")]):
         result = subprocess.run(
             ["bash", "-n", str(path)],
             cwd=ROOT,

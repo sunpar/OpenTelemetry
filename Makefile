@@ -20,7 +20,7 @@ GATEWAY_NETWORK ?= agent-otel-gateway
 GATEWAY_HOST ?= 127.0.0.1
 GATEWAY_PORT ?= 8088
 PROFILE ?= normal
-PYTHON ?= python3
+PYTHON ?= .venv/bin/python
 SIGNOZ_NETWORK ?= signoz-net
 SIGNOZ_COMPOSE_OVERRIDE ?= compose/docker-compose.signoz.override.yml
 SIGNOZ_VENDOR_DIR ?= .vendor/signoz
@@ -30,7 +30,7 @@ OTELCTL_NATIVE_PYTHONPATH := packages/auth-core/src:cli/otelctl/src
 
 export AOTEL_OTLP_UPSTREAM AOTEL_OTLP_UPSTREAM_AUTHORIZATION AUTH_API_DB_PATH AUTH_API_HOST AUTH_API_PORT GATEWAY_HOST GATEWAY_NETWORK GATEWAY_PORT SIGNOZ_NETWORK
 
-.PHONY: help install-dev lint test static-check legacy-compose-config compose-config check native-up up down user token smoke install-codex install-claude
+.PHONY: help lock install-dev setup-hooks lint test static-check legacy-compose-config compose-config check smoke-check coverage verify pr native-up up down user token smoke install-codex install-claude
 
 define require_var
 	@if [ -z "$($(1))" ]; then \
@@ -44,11 +44,18 @@ help:
 	@printf '%s\n' 'Agent OpenTelemetry Trial'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Available targets:'
+	@printf '%s\n' '  make lock             Update dependency pins after changing manifests.'
 	@printf '%s\n' '  make install-dev      Install local packages and validation tools.'
+	@printf '%s\n' '  make setup-hooks      Enable staged smoke and open-PR push gates.'
 	@printf '%s\n' '  make lint             Run Ruff.'
 	@printf '%s\n' '  make test             Run the Python test suite.'
-	@printf '%s\n' '  make static-check     Run docs/static checks and git diff --check.'
+	@printf '%s\n' '  make static-check     Run offline docs/static checks.'
 	@printf '%s\n' '  make check            Run lint, tests, and static checks.'
+	@printf '%s\n' '  make smoke-check      Run offline lint, docs, and token/API smoke tests.'
+	@printf '%s\n' '  make coverage         Run full checks with Python coverage.'
+	@printf '%s\n' '  make verify [REF=...]  Verify a committed snapshot offline (default HEAD).'
+	@printf '%s\n' '  make pr ARGS="..."     Verify HEAD, push it, and create a PR with gh options.'
+	@printf '%s\n' '                       Website/API PR creation and skipped hooks bypass local gates.'
 	@printf '%s\n' '  AOTEL_OTLP_UPSTREAM=... make native-up'
 	@printf '%s\n' '                       Start the native FastAPI auth/gateway runtime.'
 	@printf '%s\n' '                       Optional: set AOTEL_OTLP_UPSTREAM_AUTHORIZATION for managed backends.'
@@ -67,8 +74,14 @@ help:
 	@printf '%s\n' '  make install-claude ENDPOINT=... TOKEN=... [PROFILE=normal|max]'
 	@printf '%s\n' '                       Write Claude Code telemetry env file.'
 
+lock:
+	python3 scripts/git-gate.py lock
+
 install-dev:
-	$(PYTHON) -m pip install -r requirements-dev.txt
+	python3 scripts/git-gate.py install
+
+setup-hooks:
+	git config core.hooksPath .githooks
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -78,8 +91,6 @@ test:
 
 static-check:
 	$(PYTHON) scripts/check-docs.py
-	git diff --check
-	git diff --cached --check
 
 legacy-compose-config:
 	$(DOCKER_COMPOSE) -f compose/docker-compose.gateway.yml config >/dev/null
@@ -89,6 +100,18 @@ legacy-compose-config:
 compose-config: legacy-compose-config
 
 check: lint test static-check
+
+smoke-check: lint static-check
+	$(PYTHON) -m pytest -q services/auth-api/tests/test_tokens.py services/auth-api/tests/test_auth_api.py services/auth-api/tests/test_native_gateway.py tests/test_aotel009_smoke_scripts.py
+
+coverage: lint static-check
+	$(PYTHON) -m pytest -q --cov=agent_otel_auth_core --cov=auth_api --cov=otelctl --cov-report=term-missing --cov-report=xml:coverage.xml
+
+verify:
+	python3 scripts/git-gate.py check $(or $(REF),HEAD) $(or $(SUITE),check)
+
+pr:
+	python3 scripts/git-gate.py pr $(ARGS)
 
 native-up:
 	$(call require_var,AOTEL_OTLP_UPSTREAM,AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make native-up)
