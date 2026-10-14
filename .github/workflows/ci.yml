@@ -45,7 +45,7 @@ jobs:
           CHECK_SELECTION: ${{ inputs.suite }}
         run: |
           case "$CHECK_SELECTION" in
-            full) make verify && make legacy-compose-config ;;
+            full) make verify SUITE=check && make legacy-compose-config ;;
             smoke) make verify SUITE=smoke-check ;;
             coverage) make verify SUITE=coverage && make legacy-compose-config ;;
           esac
