@@ -1,6 +1,6 @@
 # Test Baseline
 
-Last updated: 2026-05-28
+Last updated: 2026-10-14
 
 ## Baseline Summary
 
@@ -15,10 +15,9 @@ OpenTelemetry gateway:
 - SigNoz bootstrap wrapper and dashboards
 - Codex and Claude Code installers
 - smoke/security scripts
-- GitHub Actions CI
+- manual GitHub Actions verification
 
-The local unit and contract suite currently passes with one opt-in live smoke
-test skipped unless the gateway stack and a real token are provided.
+The local unit and contract suite runs offline. Live gateway smoke uses `make smoke` with an operator-issued token.
 
 ## Environment Assumptions
 
@@ -31,9 +30,8 @@ test skipped unless the gateway stack and a real token are provided.
 ## Setup Commands
 
 ```sh
-/opt/homebrew/bin/python3.11 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-dev.txt
+make install-dev
+make setup-hooks
 ```
 
 ## Baseline Commands
@@ -42,11 +40,7 @@ test skipped unless the gateway stack and a real token are provided.
 .venv/bin/python -m pytest -q
 ```
 
-Expected result:
-
-```text
-94 passed, 1 skipped
-```
+Expected result: all unit and contract tests pass without running live gateway smoke.
 
 ```sh
 .venv/bin/python -m ruff check .
@@ -77,18 +71,10 @@ Expected result: both Compose files render successfully.
 Run these only when Docker can start containers and a real token is available:
 
 ```sh
-make signoz-up
-make up
+AOTEL_OTLP_UPSTREAM=http://127.0.0.1:4318 make up
 make user EMAIL=alice@example.com TEAM=quant-dev
 make token EMAIL=alice@example.com
 AOTEL_SMOKE_TOKEN=<issued-token> make smoke
-```
-
-The equivalent pytest smoke path is:
-
-```sh
-AOTEL_RUN_COMPOSE_SMOKE=1 AOTEL_SMOKE_TOKEN=<issued-token> \
-  .venv/bin/python -m pytest tests/test_aotel009_smoke_scripts.py -q
 ```
 
 ## Current Failure List

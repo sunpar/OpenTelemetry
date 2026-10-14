@@ -1,7 +1,10 @@
+import os
+import shlex
 import subprocess
 from pathlib import Path
 from textwrap import dedent
 
+import pytest
 import yaml
 
 
@@ -25,7 +28,7 @@ UPSTREAM_OPAMP_COLLECTOR_COMMAND = (
 
 
 def _compose_config(*compose_files: Path):
-    command = ["docker", "compose"]
+    command = shlex.split(os.environ.get("DOCKER_COMPOSE", "docker compose"))
     for compose_file in compose_files:
         command.extend(["-f", str(compose_file)])
     command.append("config")
@@ -49,14 +52,10 @@ def _assert_static_collector_config_without_opamp(command_text: str):
         assert opamp_arg not in command_text
 
 
-def test_signoz_compose_config_validates():
-    config = _compose_config(COMPOSE_FILE)
-    assert config["name"] == "agent-otel-signoz"
-
-
 def test_signoz_compose_declares_private_gateway_network_contract():
     compose = yaml.safe_load(COMPOSE_FILE.read_text())
 
+    assert compose["name"] == "agent-otel-signoz"
     assert compose["networks"][SIGNOZ_NETWORK_NAME]["name"] == SIGNOZ_NETWORK_NAME
     assert compose["x-agent-otel-signoz"]["strategy"] == "official-compose-wrapper"
     assert "https://github.com/SigNoz/signoz.git" in compose["x-agent-otel-signoz"]["upstream"]
@@ -85,6 +84,7 @@ def test_signoz_override_binds_ui_and_removes_host_ingestion_ports():
     assert "${SIGNOZ_NETWORK" not in override
 
 
+@pytest.mark.legacy_compose
 def test_signoz_override_merges_to_safe_host_bindings(tmp_path):
     upstream = tmp_path / "upstream-signoz.yml"
     upstream.write_text(
@@ -143,6 +143,7 @@ def test_signoz_makefile_keeps_legacy_revision_without_runtime_startup():
     assert "git clone -b main" not in makefile
 
 
+@pytest.mark.legacy_compose
 def test_signoz_compose_check_script_validates_override_stack(tmp_path, monkeypatch):
     monkeypatch.setenv("SIGNOZ_VENDOR_DIR", str(tmp_path / "missing-signoz-vendor"))
 

@@ -11,32 +11,19 @@ DEV_REQUIREMENTS = ROOT / "requirements-dev.txt"
 DOC_CHECK = ROOT / "scripts/check-docs.py"
 
 
-def test_ci_workflow_covers_core_validation_paths():
+def test_hosted_verification_is_explicit_and_bounded():
     workflow = yaml.safe_load(WORKFLOW.read_text())
-
-    assert set(workflow["jobs"]) == {
-        "python-tests",
-        "static-validation",
-    }
-    static_checkout = workflow["jobs"]["static-validation"]["steps"][0]
-    assert static_checkout["uses"] == "actions/checkout@v4"
-    assert static_checkout["with"]["fetch-depth"] == 0
-
-    rendered = WORKFLOW.read_text()
-    for expected in [
-        "python -m pip install -r requirements-dev.txt",
-        "python -m ruff check .",
-        "python -m pytest -q",
-        "python scripts/check-docs.py",
-        "git diff --check",
-        "fetch-depth: 0",
-        "origin/${GITHUB_BASE_REF}...HEAD",
-        "${{ github.event.before }}",
-    ]:
-        assert expected in rendered
-
-    assert "docker compose" not in rendered
-    assert "compose-validation" not in rendered
+    triggers = workflow[True]  # PyYAML's YAML 1.1 loader treats "on" as true.
+    assert set(triggers) == {"workflow_dispatch"}
+    assert triggers["workflow_dispatch"]["inputs"]["suite"]["options"] == ["full", "smoke", "coverage"]
+    job = workflow["jobs"]["verification"]
+    assert job["runs-on"] == "ubuntu-latest"
+    assert job["timeout-minutes"] <= 10
+    steps = job["steps"]
+    assert steps[0]["with"]["fetch-depth"] == 0
+    commands = "\n".join(step.get("run", "") for step in steps)
+    assert "make install-dev" in commands
+    assert "make verify" in commands
 
 
 def test_dev_requirements_install_local_packages_and_test_tools():
@@ -56,28 +43,15 @@ def test_dev_requirements_install_local_packages_and_test_tools():
 
 
 def test_makefile_exposes_local_validation_contract():
-    makefile = (ROOT / "Makefile").read_text()
-
+    result = subprocess.run(["make", "-n", "check"], cwd=ROOT, text=True, capture_output=True, check=True)
     for expected in [
-        "install-dev:",
-        "$(PYTHON) -m pip install -r requirements-dev.txt",
-        "lint:",
-        "$(PYTHON) -m ruff check .",
-        "test:",
-        "$(PYTHON) -m pytest -q",
-        "static-check:",
-        "$(PYTHON) scripts/check-docs.py",
-        "git diff --check",
-        "git diff --cached --check",
-        "native-up:",
-        "$(PYTHON) -m uvicorn auth_api.app:app",
-        "legacy-compose-config:",
-        "compose-config: legacy-compose-config",
-        "check: lint test static-check",
+        "-m ruff check .",
+        "-m pytest -q",
+        "scripts/check-docs.py",
     ]:
-        assert expected in makefile
-
-    assert "check: lint test static-check compose-config" not in makefile
+        assert expected in result.stdout
+    assert "git diff" not in result.stdout
+    assert "docker compose" not in result.stdout
 
 
 def test_docs_checker_runs_static_validation():

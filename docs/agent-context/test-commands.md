@@ -1,30 +1,18 @@
 # Test Commands
 
-Last updated: 2026-06-02
+Last updated: 2026-10-14
 
 ## Current Test Status
 
-The repository has runnable Python packages, a native FastAPI auth/gateway
-runtime, legacy Compose reference contracts, installer scripts, dashboard JSON,
-and GitHub Actions CI.
-
-Latest local baseline for the merged implementation:
-
-```text
-107 passed, 1 skipped
-```
-
-The skipped test is the opt-in live gateway smoke test, which requires a
-running gateway and a real issued token.
+`make check` runs the native gateway's Python tests, lint, and docs checks locally. Tests block external socket connections and use temporary SQLite databases and loopback HTTP services. Live gateway verification uses the explicit `make smoke` command with a running gateway and an issued token.
 
 ## Local Setup
 
 Run from the repository root:
 
 ```sh
-/opt/homebrew/bin/python3.11 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-dev.txt
+make install-dev
+make setup-hooks
 ```
 
 `requirements-dev.txt` installs all local Python packages in editable mode:
@@ -33,7 +21,7 @@ Run from the repository root:
 - `services/auth-api`
 - `cli/otelctl`
 
-It also installs the test and validation tools used by CI.
+Setup requires Python 3.11 and uv. It recreates `.venv` from `requirements-dev.lock` and installs the local packages. After changing dependency manifests, run `make lock`, then `make install-dev`, and stage the lock with the manifests. Setup may download dependencies; Git gates use the local cache offline and fail if a required wheel is missing.
 
 ## Package Manager Discovery
 
@@ -42,6 +30,11 @@ Current package, build, and runtime files:
 ```text
 Makefile
 requirements-dev.txt
+requirements-dev.lock
+pytest.ini
+.githooks/pre-commit
+.githooks/pre-push
+scripts/git-gate.py
 packages/auth-core/pyproject.toml
 cli/otelctl/pyproject.toml
 services/auth-api/pyproject.toml
@@ -87,19 +80,32 @@ make legacy-compose-config
 
 `make legacy-compose-config` validates the gateway compose file, the SigNoz
 wrapper, and the SigNoz upstream compose plus safe override path. It is not part
-of the default runtime or `make check`.
+of the default runtime or `make check`. Docker tests use the `legacy_compose` marker, which ordinary pytest excludes; this explicit target selects them and checks safe port bindings and the missing-vendor fallback.
 
 ## Targeted Test Commands
 
 Root Make verification contract:
 
 ```sh
-make install-dev PYTHON=.venv/bin/python
-make lint PYTHON=.venv/bin/python
-make test PYTHON=.venv/bin/python
-make static-check PYTHON=.venv/bin/python
-make check PYTHON=.venv/bin/python
+make install-dev
+make lint
+make test
+make static-check
+make check
+make smoke-check
+make verify
+make coverage
 ```
+
+`make verify` runs the full checks against HEAD in an isolated archive with pinned dependencies. Use `REF=commit` to check another committed snapshot. Precommit checks the exact staged tree with `make smoke-check`. Prepush verifies outgoing commits for branches with open PRs and for `main`; failed PR lookup stops the push. Neither gate needs Docker or starts a runtime.
+
+Create a PR through the supported wrapper:
+
+```sh
+make pr ARGS='--title "Update gateway config" --body-file /tmp/pr-body.txt'
+```
+
+The wrapper verifies HEAD, pushes that exact commit to origin, and creates a self-assigned PR. For a fork, it targets the parent repository with the fork owner's branch as the head. It accepts metadata options and rejects head/repository overrides. Git has no PR creation hook: website/API creation, direct `gh pr create`, and bypassed hooks can skip the gate. Each checkout must enable hooks with `make setup-hooks`.
 
 Auth domain and `otelctl` behavior:
 
@@ -184,13 +190,6 @@ curl -i http://localhost:8088/v1/logs -H 'Authorization: Bearer invalid'
 curl -fsS http://localhost:8088/healthz
 ```
 
-The live smoke test also supports:
-
-```sh
-AOTEL_RUN_NATIVE_SMOKE=1 AOTEL_SMOKE_TOKEN=<issued-token> \
-  .venv/bin/python -m pytest tests/test_aotel009_smoke_scripts.py -q
-```
-
 ## Onboarding Verification
 
 Codex installer:
@@ -217,17 +216,9 @@ GitHub Actions workflow:
 .github/workflows/ci.yml
 ```
 
-CI currently runs:
+GitHub Actions runs only through `workflow_dispatch`, with full, smoke, and coverage choices. All choices use the same pinned dependencies and snapshot verification commands as local gates. Full and coverage runs also validate the legacy Compose files on Ubuntu; coverage uploads `coverage.xml`. The job has a ten-minute limit.
 
-- Python package install from `requirements-dev.txt`
-- `ruff check`
-- `pytest`
-- docs, dashboard JSON, and shell syntax checks
-- `git diff --check` against the committed PR or push range
-
-CI intentionally does not start the full SigNoz stack or run live telemetry
-smoke tests yet; those remain manual milestone checks until the stack startup
-time and credentials are appropriate for CI.
+At migration time, `main` had no branch protection or ruleset-required statuses, so no protection change was needed. Routine pushes and PRs no longer launch hosted verification. There are no deployment or release workflows in this repository. Live SigNoz ingestion and Collector binary validation remain separate manual checks.
 
 ## Remaining Verification Gaps
 
