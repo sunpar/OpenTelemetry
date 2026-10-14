@@ -80,7 +80,7 @@ make legacy-compose-config
 
 `make legacy-compose-config` validates the gateway compose file, the SigNoz
 wrapper, and the SigNoz upstream compose plus safe override path. It is not part
-of the default runtime or `make check`.
+of the default runtime or `make check`. Docker tests use the `legacy_compose` marker, which ordinary pytest excludes; this explicit target selects them and checks safe port bindings and the missing-vendor fallback.
 
 ## Targeted Test Commands
 
@@ -105,7 +105,7 @@ Create a PR through the supported wrapper:
 make pr ARGS='--title "Update gateway config" --body-file /tmp/pr-body.txt'
 ```
 
-The wrapper verifies HEAD, pushes that exact commit, and creates a self-assigned PR for the current branch on origin. It accepts metadata options and rejects head/repository overrides. Git has no PR creation hook: website/API creation, direct `gh pr create`, and bypassed hooks can skip the gate. Each checkout must enable hooks with `make setup-hooks`.
+The wrapper verifies HEAD, pushes that exact commit to origin, and creates a self-assigned PR. For a fork, it targets the parent repository with the fork owner's branch as the head. It accepts metadata options and rejects head/repository overrides. Git has no PR creation hook: website/API creation, direct `gh pr create`, and bypassed hooks can skip the gate. Each checkout must enable hooks with `make setup-hooks`.
 
 Auth domain and `otelctl` behavior:
 

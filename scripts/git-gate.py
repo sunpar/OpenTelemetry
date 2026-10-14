@@ -10,6 +10,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import urlsplit
 
 
 PACKAGES = ("packages/auth-core", "services/auth-api", "cli/otelctl")
@@ -32,16 +33,16 @@ def environment():
 
 
 def run(root, *args, **options):
-    return subprocess.run(args, cwd=root, env=environment(), check=True, **options)
+    return subprocess.run(args, cwd=root, check=True, **options)
 
 
-def git(root, *args, input=None):
-    env = environment()
-    if "GIT_INDEX_FILE" in os.environ:
-        env["GIT_INDEX_FILE"] = os.environ["GIT_INDEX_FILE"]
-    return subprocess.check_output(
-        ["git", "-C", str(root), *args], env=env, input=input, text=True
-    ).strip()
+def git(root, *args, input=None, text=True):
+    env = {key: value for key, value in os.environ.items()
+           if key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX"}}
+    output = subprocess.check_output(
+        ["git", "-C", str(root), *args], env=env, input=input, text=text
+    )
+    return output.strip() if text else output
 
 
 def fingerprint(root):
@@ -59,7 +60,7 @@ def lock(root):
     ]
     for name in LOCAL_DISTRIBUTIONS:
         args.extend(["--no-emit-package", name])
-    run(root, *args)
+    run(root, *args, env=environment())
     path = root / "requirements-dev.lock"
     path.write_text(f"# inputs-sha256: {fingerprint(root)}\n" + path.read_text())
 
@@ -69,22 +70,23 @@ def install(root, offline=False):
     if not path.exists() or not path.read_text().startswith(f"# inputs-sha256: {fingerprint(root)}\n"):
         raise ValueError("Dependencies changed or lock missing. Run make lock, then make install-dev; stage the lock with its manifests.")
     common = ["--no-config", "--no-python-downloads", *(["--offline"] if offline else [])]
+    env = environment()
     python = str(root / ".venv/bin/python")
-    run(root, "uv", "venv", "--python", "3.11", "--clear", *common, ".venv")
+    run(root, "uv", "venv", "--python", "3.11", "--clear", *common, ".venv", env=env)
     run(root, "uv", "pip", "sync", "--python", python, *common,
-        "--only-binary", ":all:", "requirements-dev.lock")
+        "--only-binary", ":all:", "requirements-dev.lock", env=env)
     args = ["uv", "pip", "install", "--python", python, *common, "--no-deps", "--no-build-isolation"]
     for package in PACKAGES:
         args.extend(["-e", package])
-    run(root, *args)
-    run(root, "uv", "pip", "check", "--python", python, *common)
+    run(root, *args, env=env)
+    run(root, "uv", "pip", "check", "--python", python, *common, env=env)
     return python
 
 
 @contextmanager
 def snapshot(root, selection):
     with TemporaryDirectory(prefix="otel-check-") as directory:
-        archive = subprocess.check_output(["git", "-C", str(root), "archive", selection], env=environment())
+        archive = git(root, "archive", selection, text=False)
         run(root, "tar", "-xf", "-", "-C", directory, input=archive)
         yield Path(directory)
 
@@ -98,14 +100,20 @@ def verify(root, selection, suite="check"):
     print(f"Checking {selection} ({suite})", flush=True)
     with snapshot(root, tree) as checked:
         python = install(checked, offline=True)
-        run(checked, "make", suite, f"PYTHON={python}")
+        run(checked, "make", suite, f"PYTHON={python}", env=environment())
         if suite == "coverage":
             shutil.copy2(checked / "coverage.xml", root / "coverage.xml")
 
 
 def remote_repository(root, url):
-    return json.loads(run(root, "gh", "repo", "view", url, "--json", "nameWithOwner,isFork,parent",
-                          text=True, capture_output=True).stdout)
+    parsed = urlsplit(url)
+    safe_url = parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1], query="", fragment="").geturl()
+    repository = json.loads(run(root, "gh", "repo", "view", safe_url, "--json", "nameWithOwner,isFork,parent",
+                                text=True, capture_output=True).stdout)
+    destination = repository["nameWithOwner"]
+    parent = repository["parent"]
+    target = f"{parent['owner']['login']}/{parent['name']}" if repository["isFork"] else destination
+    return destination, target
 
 
 def gate_push(root, url, input):
@@ -114,16 +122,11 @@ def gate_push(root, url, input):
                if sha.strip("0") and ref.startswith("refs/heads/")]
     if not updates:
         return
-    repository = remote_repository(root, url)
-    destination = repository["nameWithOwner"]
-    repositories = [destination]
-    if repository["isFork"]:
-        parent = repository["parent"]
-        repositories.append(f"{parent['owner']['login']}/{parent['name']}")
+    destination, target = remote_repository(root, url)
     tips = set()
     for sha, ref in updates:
         branch = ref.removeprefix("refs/heads/")
-        for repo in repositories:
+        for repo in dict.fromkeys((destination, target)):
             prs = json.loads(run(
                 root, "gh", "pr", "list", "--repo", repo, "--state", "open", "--head", branch,
                 "--json", "headRepository,headRepositoryOwner", text=True, capture_output=True,
@@ -155,11 +158,12 @@ def create_pr(root, args):
     branch = git(root, "symbolic-ref", "--short", "HEAD")
     sha = git(root, "rev-parse", "HEAD")
     url = git(root, "remote", "get-url", "--push", "origin")
-    repository = remote_repository(root, url)["nameWithOwner"]
+    destination, repository = remote_repository(root, url)
+    head = branch if destination == repository else f"{destination.split('/')[0]}:{branch}"
     verify(root, sha)
     run(root, "git", "push", "origin", f"{sha}:refs/heads/{branch}")
     run(root, "git", "branch", f"--set-upstream-to=origin/{branch}", branch)
-    run(root, "gh", "pr", "create", "--repo", repository, "--head", branch, "--assignee", "@me", *args)
+    run(root, "gh", "pr", "create", "--repo", repository, "--head", head, "--assignee", "@me", *args)
 
 
 def main():

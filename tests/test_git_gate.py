@@ -57,6 +57,9 @@ def repository(tmp_path, monkeypatch):
         "assert importlib.util.find_spec('agent_otel_auth_core.working_only') is None\n"
         "assert os.environ.get('AOTEL_RUN_COMPOSE_SMOKE') is None\n"
         "assert os.environ.get('AOTEL_SMOKE_TOKEN') is None\n"
+        "assert os.environ.get('GIT_SSH_COMMAND') is None\n"
+        "assert os.environ.get('GIT_ASKPASS') is None\n"
+        "assert os.environ.get('GIT_CONFIG_GLOBAL') is None\n"
         "assert (root / 'value').read_text() == 'good'\n"
         "print('verified snapshot source')\n"
     )
@@ -76,7 +79,12 @@ def repository(tmp_path, monkeypatch):
         "with Path(os.environ['GATE_GH_LOG']).open('a') as f:\n"
         "    f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "if sys.argv[1:3] == ['repo', 'view']:\n"
-        "    print(json.dumps({'nameWithOwner':'owner/otel','isFork':False,'parent':None}))\n"
+        "    if os.environ.get('GATE_REPO_ERROR') == '1':\n"
+        "        print('repo lookup failed: ' + sys.argv[3], file=sys.stderr)\n"
+        "        sys.exit(5)\n"
+        "    fork = os.environ.get('GATE_FORK') == '1'\n"
+        "    parent = {'name':'otel','owner':{'login':'upstream'}} if fork else None\n"
+        "    print(json.dumps({'nameWithOwner':'owner/otel','isFork':fork,'parent':parent}))\n"
         "elif sys.argv[1:3] == ['pr', 'list']:\n"
         "    if os.environ.get('GATE_LOOKUP_ERROR') == '1':\n"
         "        print('PR lookup unavailable', file=sys.stderr)\n"
@@ -218,6 +226,76 @@ def test_pr_wrapper_pushes_verified_commit_and_assigns_author(repository):
     assert created[created.index("--head") + 1] == "topic"
     assert created[created.index("--repo") + 1] == "owner/otel"
     assert created[created.index("--assignee") + 1] == "@me"
+
+
+def test_fork_pr_targets_parent_with_verified_fork_branch(repository, monkeypatch):
+    root, sha = repository
+    monkeypatch.setenv("GATE_FORK", "1")
+    result = run_gate(root, "pr", "--title", "Change fixture", "--body", "Verified locally")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert git(root, "ls-remote", "origin", "refs/heads/topic").split()[0] == sha
+    calls = [json.loads(line) for line in Path(os.environ["GATE_GH_LOG"]).read_text().splitlines()]
+    created = next(call for call in calls if call[:2] == ["pr", "create"])
+    assert created[created.index("--repo") + 1] == "upstream/otel"
+    assert created[created.index("--head") + 1] == "owner:topic"
+
+
+def test_wrapper_preserves_source_git_credentials_and_isolates_checks(repository, tmp_path, monkeypatch):
+    root, sha = repository
+    config = tmp_path / "git-config"
+    config.write_text("[gate]\ntransport = source-settings\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -F synthetic-config")
+    monkeypatch.setenv("GIT_ASKPASS", "/synthetic/askpass")
+    hook = root / ".git/hooks/pre-push"
+    hook.write_text(
+        f"#!{sys.executable}\n"
+        "import os, subprocess\n"
+        "assert os.environ['GIT_SSH_COMMAND'] == 'ssh -F synthetic-config'\n"
+        "assert os.environ['GIT_ASKPASS'] == '/synthetic/askpass'\n"
+        "assert subprocess.check_output(['git','config','--global','--get','gate.transport'], text=True).strip() == 'source-settings'\n"
+    )
+    hook.chmod(0o755)
+    result = run_gate(root, "pr", "--title", "Change fixture", "--body", "Verified locally")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert git(root, "ls-remote", "origin", "refs/heads/topic").split()[0] == sha
+
+
+@pytest.mark.parametrize("url", [
+    "https://synthetic-user:synthetic-secret@github.com/owner/otel.git?access_token=synthetic-query",
+    "ssh://synthetic-user:synthetic-secret@github.com/owner/otel.git",
+])
+def test_remote_lookup_does_not_pass_credentials_to_gh(repository, url):
+    root, _ = repository
+    load_gate().remote_repository(root, url)
+    calls = Path(os.environ["GATE_GH_LOG"]).read_text()
+    assert "synthetic-user" not in calls
+    assert "synthetic-secret" not in calls
+    assert "synthetic-query" not in calls
+    assert "github.com/owner/otel" in calls
+
+
+def test_failed_remote_lookup_does_not_log_credentials(repository, monkeypatch):
+    root, sha = repository
+    monkeypatch.setenv("GATE_REPO_ERROR", "1")
+    result = run_gate(root, "push", "origin", "https://synthetic-user:synthetic-secret@github.com/owner/otel.git",
+                      input=f"refs/heads/topic {sha} refs/heads/topic {'0' * 40}\n")
+    assert result.returncode != 0
+    assert "repo lookup failed" in result.stderr
+    assert "synthetic-secret" not in result.stderr
+    assert "synthetic-user" not in result.stderr
+
+
+def test_signoz_static_tests_do_not_invoke_docker(tmp_path):
+    docker = tmp_path / "docker"
+    docker.write_text("#!/bin/sh\nprintf 'unexpected Docker call\\n' >&2\nexit 77\n")
+    docker.chmod(0o755)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "tests/test_aotel008_signoz.py"], cwd=ROOT,
+        env={**os.environ, "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"},
+        capture_output=True, text=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_hosted_full_choice_runs_snapshot_verification(repository):
